@@ -12,8 +12,8 @@ Agents interact through files in `planning/`.
 
 - **Groups & jurisdictions** — a **group** is the client/tenant; it houses one or more **jurisdictions** (geographic regions), which in turn hold zones, workers, and schedules.
 - **Availability** — via schedules (on-duty windows) and zoning (geographic coverage).
-- **Universal/flexible settings** — a settings system that manages settings globally and per jurisdiction, with inheritance and overrides.
-- **Order priorities** — a **composable dispatch pipeline** (see below) handling universal and per-jurisdiction priority logic.
+- **Universal/flexible settings** — a settings system that manages settings globally, per group, and per jurisdiction, with inheritance and overrides.
+- **Order priorities & matching** — a **composable dispatch pipeline** (see below) handling universal and per-jurisdiction logic for priority, worker matching, scoring, and tiebreaking.
 - **Manual override** — dispatchers can override or reassign any dispatch by hand, with a full audit trail.
 - **Metric dictionaries** — predefined and user-defined metrics with a flexible telemetry system.
 
@@ -177,7 +177,7 @@ PostgreSQL-native types. Money as `DECIMAL`, geospatial as PostGIS `GEOGRAPHY` (
 - GiST index on `boundary`. Point-in-zone via `ST_Covers`, distance via `ST_Distance` / `ST_DWithin` — all in-DB.
 
 **`workers`** — dispatch targets, managed via API.
-- `jurisdictionId` (→ jurisdiction → group, so the client is derived, not stored twice), `externalId` (unique per source), `name`, `type` (`utility`/`delivery`/`cab`), `skills` (`JSONB` array), `maxConcurrent` (INT, nullable — null inherits the resolved capacity default), `location` (`GEOGRAPHY(POINT, 4326)`, GiST-indexed), `status` (`available`/`busy`/`offline`).
+- `jurisdictionId` (→ jurisdiction → group, so the client is derived, not stored twice), `externalId` (caller-supplied by the external system; **unique on (`jurisdictionId`, `externalId`)**), `name`, `type` (`utility`/`delivery`/`cab`), `skills` (`JSONB` array), `maxConcurrent` (INT, nullable — null inherits the resolved capacity default), `location` (`GEOGRAPHY(POINT, 4326)`, GiST-indexed), `status` (`available`/`busy`/`offline`).
 
 **`zone_workers`** — many-to-many worker ↔ zone coverage. (`workerId`, `zoneId`).
 
@@ -187,7 +187,7 @@ PostgreSQL-native types. Money as `DECIMAL`, geospatial as PostGIS `GEOGRAPHY` (
 ### Orders & dispatch
 
 **`orders`** — incoming work items.
-- `jurisdictionId`, `externalId` (unique per source), `type`, `priorityTier` (`critical`/`high`/`normal`/`low`, nullable — pipeline may compute), `payload` (`JSONB`: address, skills required, time window), `pickup` (`GEOGRAPHY(POINT, 4326)`, GiST-indexed), `state` (`created`/`queued`/`dispatched`/`accepted`/`in_progress`/`completed`/`cancelled`/`failed`), `slaDueAt` (DATE), `createdAt`.
+- `jurisdictionId`, `externalId` (caller-supplied by the external system; **unique on (`jurisdictionId`, `externalId`)** — also the idempotency key for re-submitted orders), `type`, `priorityTier` (`critical`/`high`/`normal`/`low`, nullable — pipeline may compute), `payload` (`JSONB`: address, skills required, time window), `pickup` (`GEOGRAPHY(POINT, 4326)`, GiST-indexed), `state` (`created`/`queued`/`dispatched`/`accepted`/`in_progress`/`completed`/`cancelled`/`failed`), `slaDueAt` (DATE), `createdAt`.
 - Index: (`jurisdictionId`, `state`), (`slaDueAt`).
 
 **`dispatch_queue`** — the work queue / outbox the engine claims from.
@@ -245,9 +245,11 @@ Stored as `JSONB` (not normalized rows) because the config is read as a whole un
 **`metric_definitions`** — the metric dictionary (predefined + custom).
 - `key` (unique), `name`, `description`, `unit`, `type` (`counter`/`gauge`/`duration`/`rate`), `builtin` (BOOL), `aggregation` (`sum`/`avg`/`p95`/`max`), `jurisdictionId` (nullable — custom metrics can be jurisdiction-scoped).
 
-**`metric_points`** — emitted time-series data.
+**`metric_points`** — emitted time-series data. The highest-volume table (one row per dispatch decision), so growth is managed by partitioning + retention rather than left unbounded.
 - `metricKey`, `jurisdictionId`, `workerId` (nullable), `orderId` (nullable), `value` (DECIMAL), `dimensions` (`JSONB` — flexible tags), `ts` (DATE).
 - Index: (`metricKey`, `jurisdictionId`, `ts`) for dashboard queries.
+- **Partitioning:** native **declarative range partitioning by `ts`** (monthly), so the hot index stays small and old data drops cheaply. Partitions are created ahead of time by the scheduler.
+- **Retention:** raw points are kept for a configurable window (a resolved setting, default **90 days**); partitions older than the window are `DROP`ped (a metadata-only operation — far cheaper than row-by-row `DELETE`). Rollup/aggregate tables for longer-range dashboards are a deferred add (see Suggestions) — only build them if dashboards need history beyond the raw window.
 
 **Built-in metrics** (seeded into `metric_definitions`): dispatch response time, time-to-assign, assignment duration, acceptance rate, rejection rate, SLA compliance %, queue depth, worker utilization, active/idle worker counts, orders/hour, manual override rate.
 
@@ -263,11 +265,12 @@ A real-time Node.js service. Modules with tight boundaries:
 | `resolver` | Resolves jurisdiction from the order; loads pipeline config + effective settings (from cache). |
 | `matcher` | Finds candidate workers within the order's jurisdiction: zone (`ST_Covers`/`ST_DWithin`) ∩ on-duty (schedule) ∩ under effective capacity. |
 | `pipeline` | Loads and composes stages; runs candidates through them (strategy pattern). |
-| `assigner` | Transactionally writes the winning `assignment`, prevents double-dispatch. |
+| `assigner` | Transactionally writes the winning `assignment`; **locks the chosen worker row (`SELECT … FOR UPDATE`) and re-checks capacity inside that lock** so two instances can't over-assign the same worker. |
 | `lifecycle` | Assignment state machine; handles accept/reject/complete/expire and manual override/reassign transitions. |
 | `scheduler` | Periodic sweep: expired assignments, SLA-breach warnings, workload rebalance. |
 | `telemetry` | Emits `metric_points` for every decision. |
 | `settings-cache` | In-memory effective settings + pipeline config per jurisdiction; hot-reload. |
+| `heartbeat` | Upserts this instance's `engine_instances` row on startup and every interval (`≤ POLL_INTERVAL_MS`); marks `stopped` on graceful shutdown. Backs `GET /health/engine`. |
 
 ### Dispatch flow
 
@@ -276,9 +279,26 @@ A real-time Node.js service. Modules with tight boundaries:
 3. `resolver` loads the jurisdiction's pipeline config and effective settings from `settings-cache`.
 4. `matcher` builds the candidate worker set via the filter chain.
 5. `pipeline` runs candidates through enabled stages in order (see below).
-6. `assigner` opens a transaction, re-checks the top worker's capacity, writes the `assignment` (`state=dispatched`), sets `order.state=dispatched`, marks the queue row `done`.
+6. `assigner` opens a transaction, **locks the top worker's row with `SELECT … FOR UPDATE` and re-checks capacity under that lock** (falling to the next candidate if the worker filled up since matching), writes the `assignment` (`state=dispatched`), sets `order.state=dispatched`, marks the queue row `done`.
 7. `telemetry` emits response-time, queue-depth, and decision metrics.
 8. External system reports back (accept/reject/progress/complete) via API → `lifecycle` advances the assignment; rejects/expiries re-queue the order.
+
+### State invariants
+
+An order's lifecycle spans three tables — `orders.state`, `dispatch_queue.status`, and `assignments.state` — each with its own machine. These must stay consistent; the following invariants hold at every transaction boundary and are what the re-queue / expire / unassign paths must preserve:
+
+| Order `state` | `dispatch_queue` | Active assignment* |
+|---|---|---|
+| `queued` | exactly one `pending` or `claimed` row | none |
+| `dispatched` / `accepted` / `in_progress` | the row is `done` | exactly one, in the matching state |
+| `completed` / `cancelled` | `done` (or no row) | at most one terminal (`completed`/`cancelled`) |
+| `failed` | one `error` row (dead-letter) | none active |
+
+\* "active" = not in a terminal state (`rejected`/`expired`/`overridden`/`completed`/`cancelled`).
+
+- **Re-queue** (reject / expire / unassign) transitions the current assignment to a terminal state **and** inserts a fresh `pending` `dispatch_queue` row **and** sets `order.state=queued`, all in one transaction — never a partial move.
+- An order never has two active assignments simultaneously; the `assigner` capacity lock (above) plus this invariant guarantee it.
+- Manual `unassign` is the only path that returns a non-terminal order to `queued` by hand; it follows the same all-in-one-transaction rule.
 
 ### Composable pipeline (strategy pattern)
 
@@ -326,7 +346,7 @@ Dispatchers can intervene on any dispatch by hand — reassign to a chosen worke
 
 ### Resilience & scale
 
-- **No double-dispatch** — row-claiming + transactional capacity re-check in `assigner`.
+- **No double-dispatch** — two independent guards: `SKIP LOCKED` row-claiming stops two instances processing the same *queue row*, and a `SELECT … FOR UPDATE` lock on the chosen worker row (with an in-lock capacity re-check) in `assigner` stops two instances over-assigning the same *worker* from different orders. The queue lock alone does not cover the second case.
 - **No-response** — assignments have `expiresAt`; the scheduler expires them and re-queues the order with incremented `attempts`.
 - **Retries** — `dispatch_queue.attempts` + `nextAttemptAt` exponential backoff; dead-letter (`status=error`) after N attempts, surfaced in the UI.
 - **Horizontal scale** — run N engine instances; `SKIP LOCKED` guarantees disjoint claims.
@@ -335,7 +355,7 @@ Dispatchers can intervene on any dispatch by hand — reassign to a chosen worke
 
 ## Backend API (Express)
 
-REST, JSON. Versioned under `/api/v1`. No auth yet (middleware seam left in place).
+REST, JSON. Versioned under `/api/v1`. No **user auth / RBAC** yet (middleware seam left in place — see Suggestions). Note this is distinct from webhook **payload authentication**: inbound `POST /webhooks/:slug` requests are HMAC-signature-verified against a per-source secret regardless of the deferred RBAC. Signing authenticates the *sender of a payload*; RBAC authorizes a *human operator* — the two are independent concerns.
 
 | Resource | Endpoints |
 |---|---|
@@ -442,9 +462,12 @@ Voyager/
 **Phase 1 — Ingestion & CRUD API**
 - Express app; CRUD for all core entities; order ingestion (`POST /orders`) writing order + `dispatch_queue`.
 - `SettingsService` with global→group→jurisdiction resolution; settings + audit endpoints.
+- Inbound webhooks: `webhook_sources` + `webhook_events`, `POST /webhooks/:slug` with HMAC verification + idempotency, mapping to the shared ingestion path.
+- `GET /health` (API + DB probe).
 
 **Phase 2 — Engine MVP**
 - `queue-consumer` with row-claiming; `matcher`; single-stage pipeline (Scoring); `assigner` with transactional claim; lifecycle basics.
+- `heartbeat` writer + `GET /health/engine`.
 - Emit first telemetry metrics.
 
 **Phase 3 — Composable pipeline & manual override**
@@ -454,6 +477,7 @@ Voyager/
 
 **Phase 4 — Telemetry & metric dictionary**
 - Full built-in metric seed; `metric_points` emission everywhere; `metrics/query` aggregation; custom metric definitions.
+- `metric_points` range partitioning by `ts`; scheduler creates future partitions ahead of time and drops partitions past the retention window.
 - SLA sweep + rebalancing scheduler.
 
 **Phase 5 — Interface**

@@ -120,3 +120,26 @@ Keep auth **deferred** for the MVP as planned, but **do not let the seam rot** �
 
 ### Recommendation
 Adopt in tiers behind the adapter seam. Ship the **`RoutingProvider` interface + `StraightLine` default** first (near-zero cost, unblocks the stage). Add **`IncidentOverlay`** as the first real routing rule since it's fully PostGIS-native and needs no new infrastructure, with incidents ingested via the existing webhook path. Defer **`ExternalRouting`** until a jurisdiction's density justifies the cost and coupling — and only with matrix batching, cell/time-bucket caching, and straight-line fallback in place. Emit routing telemetry (provider latency, cache hit-rate, ETA-vs-straight-line delta, fallback count, incident-penalty applications) from day one so the accuracy gains are measurable.
+
+---
+
+## 5. Metric rollup / aggregate tables
+
+**Status:** Proposed (not in plan). `PLAN.md` commits to **range partitioning `metric_points` by `ts` + a retention window** (default 90 days); partitions past the window are dropped. This suggestion covers what to do when dashboards need history *beyond* that raw window.
+
+**The idea:** Periodically aggregate raw `metric_points` into coarser **rollup tables** (e.g. `metric_points_hourly`, `metric_points_daily`) holding pre-computed `sum`/`avg`/`p95`/`max`/`count` per (`metricKey`, `jurisdictionId`, bucket). Rollups are tiny compared to raw points and can be retained far longer (months/years), so long-range trend charts survive after the raw partitions are dropped.
+
+**Suggested shape:** a scheduler job rolls closed time buckets up into the aggregate tables; `metrics/query` transparently reads raw points inside the retention window and rollups outside it (or always reads rollups for coarse `groupBy`). Aggregation must respect each metric's `aggregation` type (a `p95` can't be re-derived from hourly averages — store the needed inputs or approximate with a t-digest/`percentile` sketch per bucket).
+
+### Pros
+- **Long-range history at low cost** — keep years of trends without keeping years of raw rows.
+- **Faster dashboards** — coarse queries hit small pre-aggregated tables instead of scanning raw partitions.
+- **Complements, not replaces** — raw points still serve recent high-resolution drill-down; rollups serve the long tail.
+
+### Cons
+- **Aggregation correctness** — percentiles/rates don't compose from lower rollups; needs sketches or retained inputs, which is fiddly.
+- **More scheduler work + storage** — another periodic job and additional tables to maintain and back-fill.
+- **Query-routing complexity** — `metrics/query` must decide raw-vs-rollup per request and stitch across the boundary.
+
+### Recommendation
+Defer until a dashboard genuinely needs history beyond the raw retention window. Partitioning + retention alone covers the MVP. When adopted, start with **hourly + daily** rollups for the built-in metrics, and handle percentile metrics with a per-bucket sketch rather than pretending averages compose.
