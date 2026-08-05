@@ -1,4 +1,4 @@
-import { startTestDatabase } from "./src/test/globalSetup.js";
+import { startTestDatabase } from "@voyager/shared/test";
 
 /** Publishes the Testcontainers connection string via TEST_DATABASE_URL for test files to use. */
 export default async function setup() {

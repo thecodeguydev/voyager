@@ -4,3 +4,4 @@ export * from "./models/index.js";
 export * from "./queue/claim.js";
 export * from "./seed/loadSeedWorld.js";
 export * from "./seed/slugId.js";
+export * from "./settings/index.js";

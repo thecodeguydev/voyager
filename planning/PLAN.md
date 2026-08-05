@@ -467,21 +467,33 @@ Voyager/
 - **Known flake:** the `queue.claim()` concurrency test has under-claimed (returned fewer rows than pending) in roughly 2 of ~25 runs, both times correlated with heavy host load (a first-ever cold container start; immediately after a large rebuild). Clock skew between Node and the container was measured and ruled out (~3ms, and in the wrong direction to explain it). The claim SQL matches the `SKIP LOCKED` pattern documented above exactly, and rerunning always passes. Root cause unconfirmed — if this recurs, investigate rather than dismiss it as environmental.
 - Deferred to later phases per TESTING.md's own phase alignment (not a Phase 0 gap): a crash-recovery/stale-claim reclaim test (needs the `scheduler`/expiry mechanism, which doesn't exist yet) and transaction-rollback test isolation (only matters once non-concurrency integration tests exist in volume).
 
-**Phase 1 — Ingestion & CRUD API**
+**Phase 1 — Ingestion & CRUD API** ✅ Done
 - Express app; CRUD for all core entities; order ingestion (`POST /orders`) writing order + `dispatch_queue`.
 - `SettingsService` with global→group→jurisdiction resolution; settings + audit endpoints.
 - Inbound webhooks: `webhook_sources` + `webhook_events`, `POST /webhooks/:slug` with HMAC verification + idempotency, mapping to the shared ingestion path.
 - `GET /health` (API + DB probe).
+- **Pulled forward from Phase 3** (product owner call): the `assignments` table plus manual assignment — `POST /orders/:id/reassign`, `POST /orders/:id/unassign`, `GET /assignments`, `GET /orders/:id/assignments`, `GET /orders/:id/audit`. Dispatchers can manually assign/reassign/unassign orders to workers before the auto-engine exists; every action is transactional and audited. The capacity check is real (via `SettingsService`); off-duty/zone soft-constraint warnings are deferred to Phase 2 since they need the matcher's geospatial/schedule logic.
+
+**Implementation notes (for later phases):**
+- New `shared/` tables (migrations 0011-0015): `assignments`, `settings` (3 partial unique indexes, one per scope — avoids the classic gotcha where a plain multi-column unique index lets NULLs coexist), `audit_log` (FKs to `groups`/`jurisdictions` use `SET NULL` — an audit trail must outlive the thing it audited, unlike every other FK in this schema which cascades), `webhook_sources`, `webhook_events`.
+- **`api/` has no `models/`/`migrations/` of its own**, despite the Repository Layout diagram showing them — Key Design Decision #3 (shared owns models) is the authoritative call and is what Phase 0 already built. `api/` imports everything from `@voyager/shared`.
+- **Build ordering matters:** `shared/` must be built (`npm run build`) before `api/` can import it — `dist/` is git-ignored and there are no TS project references. Both the root and `api/`'s own `package.json` now have a `pretest` script that builds `shared` first, so `npm test` works from a clean checkout whether run at the root or from inside `api/`.
+- **Express 5 breaking change:** `req.query` is getter-only (`req.query = x` throws `TypeError`); the validation middleware (`api/src/middleware/validate.ts`) works around this with `Object.defineProperty` for the query case only (`body`/`params` stay directly assignable). Also confirmed empirically: Express 5 auto-forwards a rejected promise from an async route handler to the error middleware, so no `asyncHandler` wrapper is needed anywhere.
+- **Route params typing:** Express's types make `req.params.xyz` come out as `string | string[]` even after Zod validation narrows it at runtime. The fix used throughout is an explicit generic on the router call — `router.get<{ id: string }>("/:id", validateParams(idParamsSchema), ...)` — not a cast. Apply this to any new `:param` route.
+- Idempotency (orders' `(jurisdictionId, externalId)`, webhooks' `(sourceId, dedupeKey)`) is enforced by a DB unique index but the check-then-act code path isn't atomic; both `createOrder` and the webhook receiver catch `SequelizeUniqueConstraintError` on the losing insert and return the winner's row instead of a 500. Follow this pattern for any new idempotent-write endpoint.
+- Zod v4 idioms used throughout: top-level `z.uuid()`/`z.iso.datetime()` (not `z.string().uuid()`), `z.record(keyType, valueType)` (two args, not one).
 
 **Phase 2 — Engine MVP**
 - `queue-consumer` with row-claiming; `matcher`; single-stage pipeline (Scoring); `assigner` with transactional claim; lifecycle basics.
 - `heartbeat` writer + `GET /health/engine`.
 - Emit first telemetry metrics.
+- Order lifecycle transitions (`accept`/`reject`/`progress`/`complete`) — deliberately deferred from Phase 1 since they represent a worker responding to an auto-dispatch, which doesn't exist until this phase.
+- Off-duty/zone soft-constraint warnings for manual reassignment (Phase 1 only checks capacity) once the matcher's geospatial/schedule logic exists.
 
 **Phase 3 — Composable pipeline & manual override**
 - TierFilter + Tiebreak stages; `pipeline_configs`; presets; reorder/toggle; `pipelineTrace`.
-- Manual reassign/unassign endpoints + lifecycle transitions; dispatch audit trail; `manual` assignments excluded from auto-re-dispatch.
-- Settings hot-reload via `settingsVersion`.
+- ~~Manual reassign/unassign endpoints~~ — built in Phase 1 (see above). Remaining here: wiring `manual` assignments to be excluded from auto-re-dispatch once the Phase 2 engine/rebalancer exists.
+- Settings hot-reload via `settingsVersion` — the write side (bumping `settingsVersion` on jurisdiction/group/global changes) is done in Phase 1's `SettingsService`; what's left is the engine actually watching it and reloading its cache, which needs the engine to exist first.
 
 **Phase 4 — Telemetry & metric dictionary**
 - Full built-in metric seed; `metric_points` emission everywhere; `metrics/query` aggregation; custom metric definitions.

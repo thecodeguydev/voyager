@@ -12,7 +12,12 @@ export function getTestSequelize(options?: Parameters<typeof createSequelize>[1]
   return createSequelize(url, options);
 }
 
-const PHASE_0_TABLES = [
+const ALL_TABLES = [
+  "webhook_events",
+  "webhook_sources",
+  "audit_log",
+  "settings",
+  "assignments",
   "dispatch_queue",
   "orders",
   "schedules",
@@ -23,7 +28,7 @@ const PHASE_0_TABLES = [
   "groups",
 ];
 
-/** Clears every Phase 0 table so each test starts from a clean slate. */
+/** Clears every table so each test starts from a clean slate. */
 export async function truncateAll(sequelize: Sequelize): Promise<void> {
-  await sequelize.query(`TRUNCATE TABLE ${PHASE_0_TABLES.join(", ")} RESTART IDENTITY CASCADE`);
+  await sequelize.query(`TRUNCATE TABLE ${ALL_TABLES.join(", ")} RESTART IDENTITY CASCADE`);
 }
