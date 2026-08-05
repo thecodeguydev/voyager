@@ -1,0 +1,402 @@
+{
+  "meta": {
+    "name": "Voyager canonical seed world",
+    "description": "ORM-independent test dataset. A future seeder maps these string ids to deterministic UUIDs (uuid v5) and loads them via the Sequelize models. Coordinates are real (lng lat, SRID 4326) and chosen so geometry is reason-by-eye. See README.md for the geography, the reference clock, and what each entity exercises.",
+    "referenceClock": "2026-08-05T14:00:00Z",
+    "referenceClockLocal": "2026-08-05 10:00 America/Toronto (Wednesday, EDT = UTC-4)",
+    "coordinateNote": "At latitude ~43.65deg: 0.01deg longitude ~= 0.805 km, 0.01deg latitude ~= 1.11 km. Distances in README are derived from these.",
+    "idScheme": "Human-readable slugs; the seeder resolves each to a stable uuid v5 so the world is reproducible across seeds."
+  },
+
+  "groups": [
+    {
+      "id": "grp-aurora",
+      "name": "Aurora Field Services",
+      "code": "AURORA",
+      "description": "Utility client / tenant. Houses the Central Metro and North Region jurisdictions.",
+      "status": "active"
+    }
+  ],
+
+  "jurisdictions": [
+    {
+      "id": "jur-central-metro",
+      "groupId": "grp-aurora",
+      "name": "Central Metro",
+      "code": "CENTRAL",
+      "timezone": "America/Toronto",
+      "status": "active",
+      "settingsVersion": 1
+    },
+    {
+      "id": "jur-north-region",
+      "groupId": "grp-aurora",
+      "name": "North Region",
+      "code": "NORTH",
+      "timezone": "America/Toronto",
+      "status": "active",
+      "settingsVersion": 1
+    }
+  ],
+
+  "zones": [
+    {
+      "id": "zone-downtown",
+      "jurisdictionId": "jur-central-metro",
+      "name": "Downtown",
+      "status": "active",
+      "boundary": "POLYGON((-79.40 43.64, -79.38 43.64, -79.38 43.66, -79.40 43.66, -79.40 43.64))",
+      "centroid": "POINT(-79.39 43.65)",
+      "note": "Western square. Overlaps Riverside in the strip lng -79.385..-79.38."
+    },
+    {
+      "id": "zone-riverside",
+      "jurisdictionId": "jur-central-metro",
+      "name": "Riverside",
+      "status": "active",
+      "boundary": "POLYGON((-79.385 43.64, -79.365 43.64, -79.365 43.66, -79.385 43.66, -79.385 43.64))",
+      "centroid": "POINT(-79.375 43.65)",
+      "note": "Eastern square, shifted so it overlaps Downtown by a ~0.4 km strip. The overlap region is lng [-79.385,-79.38] x lat [43.64,43.66]."
+    },
+    {
+      "id": "zone-airport",
+      "jurisdictionId": "jur-central-metro",
+      "name": "Airport",
+      "status": "active",
+      "boundary": "POLYGON((-79.30 43.60, -79.28 43.60, -79.28 43.62, -79.30 43.62, -79.30 43.60))",
+      "centroid": "POINT(-79.29 43.61)",
+      "note": "Detached zone, ~8-9 km SE of Downtown. No overlap with any zone."
+    },
+    {
+      "id": "zone-hilltop",
+      "jurisdictionId": "jur-north-region",
+      "name": "Hilltop",
+      "status": "active",
+      "boundary": "POLYGON((-79.42 43.72, -79.40 43.72, -79.40 43.74, -79.42 43.74, -79.42 43.72))",
+      "centroid": "POINT(-79.41 43.73)",
+      "note": "Sole zone of North Region, ~9 km north of Central Metro. Isolation test: skilled Central Metro workers must NOT be candidates here."
+    }
+  ],
+
+  "workers": [
+    {
+      "id": "wkr-ava",
+      "jurisdictionId": "jur-central-metro",
+      "externalId": "AURORA-W-001",
+      "name": "Ava Chen",
+      "type": "utility",
+      "skills": ["electrical", "metering"],
+      "maxConcurrent": 2,
+      "location": "POINT(-79.39 43.65)",
+      "status": "available",
+      "note": "At Downtown centroid. Only worker with 'metering'. Own capacity override = 2."
+    },
+    {
+      "id": "wkr-ben",
+      "jurisdictionId": "jur-central-metro",
+      "externalId": "AURORA-W-002",
+      "name": "Ben Ortiz",
+      "type": "utility",
+      "skills": ["plumbing", "electrical"],
+      "maxConcurrent": 3,
+      "location": "POINT(-79.375 43.65)",
+      "status": "available",
+      "note": "At Riverside centroid. Only worker with 'plumbing'."
+    },
+    {
+      "id": "wkr-carol",
+      "jurisdictionId": "jur-central-metro",
+      "externalId": "AURORA-W-003",
+      "name": "Carol Diaz",
+      "type": "utility",
+      "skills": ["electrical"],
+      "maxConcurrent": 1,
+      "location": "POINT(-79.382 43.65)",
+      "status": "available",
+      "note": "Inside BOTH Downtown and Riverside (the overlap). Covers both zones."
+    },
+    {
+      "id": "wkr-dan",
+      "jurisdictionId": "jur-central-metro",
+      "externalId": "AURORA-W-004",
+      "name": "Dan Petrov",
+      "type": "utility",
+      "skills": ["electrical"],
+      "maxConcurrent": null,
+      "location": "POINT(-79.35 43.65)",
+      "status": "offline",
+      "note": "East of Riverside, outside all zones, and offline. Never a candidate. maxConcurrent null -> inherits resolved default."
+    },
+    {
+      "id": "wkr-elin",
+      "jurisdictionId": "jur-north-region",
+      "externalId": "AURORA-W-005",
+      "name": "Elin Novak",
+      "type": "utility",
+      "skills": ["electrical"],
+      "maxConcurrent": 2,
+      "location": "POINT(-79.41 43.73)",
+      "status": "available",
+      "note": "At Hilltop centroid in North Region. Sole valid candidate for North Region orders."
+    },
+    {
+      "id": "wkr-farah",
+      "jurisdictionId": "jur-central-metro",
+      "externalId": "AURORA-W-006",
+      "name": "Farah Idris",
+      "type": "utility",
+      "skills": ["electrical"],
+      "maxConcurrent": 1,
+      "location": "POINT(-79.395 43.655)",
+      "status": "busy",
+      "note": "In Downtown but AT CAPACITY (maxConcurrent 1, one active assignment on ord-preexisting). Excluded by the capacity check."
+    }
+  ],
+
+  "zoneWorkers": [
+    { "workerId": "wkr-ava",   "zoneId": "zone-downtown" },
+    { "workerId": "wkr-ben",   "zoneId": "zone-riverside" },
+    { "workerId": "wkr-carol", "zoneId": "zone-downtown" },
+    { "workerId": "wkr-carol", "zoneId": "zone-riverside" },
+    { "workerId": "wkr-dan",   "zoneId": "zone-downtown" },
+    { "workerId": "wkr-elin",  "zoneId": "zone-hilltop" },
+    { "workerId": "wkr-farah", "zoneId": "zone-downtown" }
+  ],
+
+  "schedules": [
+    {
+      "id": "sch-ava-weekdays",
+      "workerId": "wkr-ava",
+      "daysOfWeek": [1, 2, 3, 4, 5],
+      "startTime": "08:00",
+      "endTime": "17:00",
+      "type": "shift",
+      "recurring": true,
+      "note": "Seeder expands one row per day (model stores a single dayOfWeek). On-duty at the reference clock (Wed 10:00)."
+    },
+    {
+      "id": "sch-ava-timeoff",
+      "workerId": "wkr-ava",
+      "date": "2026-08-07",
+      "startTime": "00:00",
+      "endTime": "23:59",
+      "type": "timeoff",
+      "recurring": false,
+      "note": "One-off date-based time off (a Friday). Demonstrates the date shape and off-duty override."
+    },
+    {
+      "id": "sch-ben-allweek",
+      "workerId": "wkr-ben",
+      "daysOfWeek": [0, 1, 2, 3, 4, 5, 6],
+      "startTime": "00:00",
+      "endTime": "23:59",
+      "type": "shift",
+      "recurring": true,
+      "note": "Always on duty."
+    },
+    {
+      "id": "sch-carol-weekdays",
+      "workerId": "wkr-carol",
+      "daysOfWeek": [1, 2, 3, 4, 5],
+      "startTime": "09:00",
+      "endTime": "18:00",
+      "type": "shift",
+      "recurring": true,
+      "note": "On-duty at the reference clock."
+    },
+    {
+      "id": "sch-dan-weekdays",
+      "workerId": "wkr-dan",
+      "daysOfWeek": [1, 2, 3, 4, 5],
+      "startTime": "08:00",
+      "endTime": "16:00",
+      "type": "shift",
+      "recurring": true,
+      "note": "On the schedule, but status=offline excludes Dan regardless."
+    },
+    {
+      "id": "sch-elin-weekdays",
+      "workerId": "wkr-elin",
+      "daysOfWeek": [1, 2, 3, 4, 5],
+      "startTime": "08:00",
+      "endTime": "16:00",
+      "type": "shift",
+      "recurring": true,
+      "note": "On-duty at the reference clock."
+    },
+    {
+      "id": "sch-farah-daily",
+      "workerId": "wkr-farah",
+      "daysOfWeek": [0, 1, 2, 3, 4, 5, 6],
+      "startTime": "06:00",
+      "endTime": "22:00",
+      "type": "shift",
+      "recurring": true,
+      "note": "On-duty, but at capacity so still not assignable."
+    }
+  ],
+
+  "settings": [
+    {
+      "scope": "global",
+      "groupId": null,
+      "jurisdictionId": null,
+      "key": "worker.max_concurrent",
+      "value": 3,
+      "dataType": "number",
+      "description": "Global default worker capacity when neither group, jurisdiction, nor worker overrides it."
+    },
+    {
+      "scope": "group",
+      "groupId": "grp-aurora",
+      "jurisdictionId": null,
+      "key": "worker.max_concurrent",
+      "value": 4,
+      "dataType": "number",
+      "description": "Aurora (client) raises the default to 4. Cascade check: a Central Metro worker with null maxConcurrent resolves to 4 (group) since no jurisdiction override exists."
+    },
+    {
+      "scope": "jurisdiction",
+      "groupId": null,
+      "jurisdictionId": "jur-central-metro",
+      "key": "dispatch.expiry_seconds",
+      "value": 120,
+      "dataType": "number",
+      "description": "Central Metro assignments expire after 120s without a response."
+    }
+  ],
+
+  "pipelineConfigs": [
+    {
+      "jurisdictionId": "jur-central-metro",
+      "preset": "balanced",
+      "enabled": true,
+      "stages": [
+        { "type": "tier",     "enabled": true, "config": { "tiers": ["critical", "high", "normal", "low"], "sla": { "critical": 15, "high": 60 } } },
+        { "type": "scoring",  "enabled": true, "config": { "weights": { "distance": 0.5, "skillMatch": 0.3, "waitTime": 0.2 } } },
+        { "type": "tiebreak", "enabled": true, "config": { "strategy": "nearest" } }
+      ]
+    },
+    {
+      "jurisdictionId": "jur-north-region",
+      "preset": "simple",
+      "enabled": true,
+      "stages": [
+        { "type": "scoring", "enabled": true, "config": { "weights": { "distance": 1.0 } } }
+      ]
+    }
+  ],
+
+  "orders": [
+    {
+      "id": "ord-preexisting",
+      "jurisdictionId": "jur-central-metro",
+      "externalId": "AURORA-O-000",
+      "type": "outage",
+      "priorityTier": "normal",
+      "payload": { "address": "1 Downtown Plaza", "skillsRequired": ["electrical"] },
+      "pickup": "POINT(-79.395 43.655)",
+      "state": "in_progress",
+      "slaDueAt": null,
+      "note": "Already assigned to Farah (in_progress). Exists so Farah is at capacity; has no dispatch_queue row."
+    },
+    {
+      "id": "ord-downtown-metering",
+      "jurisdictionId": "jur-central-metro",
+      "externalId": "AURORA-O-001",
+      "type": "metering",
+      "priorityTier": "normal",
+      "payload": { "address": "10 Downtown St", "skillsRequired": ["electrical"] },
+      "pickup": "POINT(-79.39 43.65)",
+      "state": "queued",
+      "slaDueAt": null,
+      "note": "Inside Downtown. Candidates Ava (0 m) and Carol (644 m); Farah excluded (capacity). Distance -> Ava wins."
+    },
+    {
+      "id": "ord-riverside-leak",
+      "jurisdictionId": "jur-central-metro",
+      "externalId": "AURORA-O-002",
+      "type": "leak_repair",
+      "priorityTier": "normal",
+      "payload": { "address": "5 Riverside Ave", "skillsRequired": ["plumbing"] },
+      "pickup": "POINT(-79.375 43.65)",
+      "state": "queued",
+      "slaDueAt": null,
+      "note": "Inside Riverside, requires plumbing. Only Ben qualifies -> skill-match narrows to Ben."
+    },
+    {
+      "id": "ord-overlap-job",
+      "jurisdictionId": "jur-central-metro",
+      "externalId": "AURORA-O-003",
+      "type": "inspection",
+      "priorityTier": "normal",
+      "payload": { "address": "Overlap Corner", "skillsRequired": ["electrical"] },
+      "pickup": "POINT(-79.382 43.65)",
+      "state": "queued",
+      "slaDueAt": null,
+      "note": "In the Downtown+Riverside overlap. Candidates Carol (0 m), Ben (564 m), Ava (644 m) -> Carol wins."
+    },
+    {
+      "id": "ord-out-of-area",
+      "jurisdictionId": "jur-central-metro",
+      "externalId": "AURORA-O-004",
+      "type": "inspection",
+      "priorityTier": "low",
+      "payload": { "address": "Nowhere Rd", "skillsRequired": ["electrical"] },
+      "pickup": "POINT(-79.35 43.65)",
+      "state": "queued",
+      "slaDueAt": null,
+      "note": "In Central Metro but outside every zone. No covering zone -> empty candidate set -> exercises retry/dead-letter."
+    },
+    {
+      "id": "ord-hilltop-inspection",
+      "jurisdictionId": "jur-north-region",
+      "externalId": "AURORA-O-005",
+      "type": "inspection",
+      "priorityTier": "normal",
+      "payload": { "address": "2 Hilltop Rd", "skillsRequired": ["electrical"] },
+      "pickup": "POINT(-79.41 43.73)",
+      "state": "queued",
+      "slaDueAt": null,
+      "note": "Inside Hilltop (North Region). Only Elin is a candidate; skilled Central Metro workers are excluded by jurisdiction."
+    },
+    {
+      "id": "ord-critical-outage",
+      "jurisdictionId": "jur-central-metro",
+      "externalId": "AURORA-O-006",
+      "type": "outage",
+      "priorityTier": "critical",
+      "payload": { "address": "10 Downtown St", "skillsRequired": ["electrical"] },
+      "pickup": "POINT(-79.39 43.65)",
+      "state": "queued",
+      "slaDueAt": "2026-08-05T14:15:00Z",
+      "note": "Inside Downtown, critical tier, 15-min SLA. Exercises the TierFilter and SLA path; candidates Ava and Carol."
+    }
+  ],
+
+  "assignments": [
+    {
+      "id": "asg-preexisting",
+      "orderId": "ord-preexisting",
+      "workerId": "wkr-farah",
+      "jurisdictionId": "jur-central-metro",
+      "state": "in_progress",
+      "source": "auto",
+      "score": 0.90,
+      "pipelineTrace": { "stages": ["scoring"], "winner": "wkr-farah", "reason": "seed pre-existing assignment" },
+      "dispatchedAt": "2026-08-05T13:30:00Z",
+      "respondedAt": "2026-08-05T13:31:00Z",
+      "expiresAt": null,
+      "note": "Makes Farah at-capacity. Not overridable by seed; drives the capacity-exclusion test."
+    }
+  ],
+
+  "dispatchQueue": [
+    { "orderId": "ord-downtown-metering",   "jurisdictionId": "jur-central-metro", "status": "pending", "attempts": 0, "nextAttemptAt": "2026-08-05T14:00:00Z" },
+    { "orderId": "ord-riverside-leak",      "jurisdictionId": "jur-central-metro", "status": "pending", "attempts": 0, "nextAttemptAt": "2026-08-05T14:00:00Z" },
+    { "orderId": "ord-overlap-job",         "jurisdictionId": "jur-central-metro", "status": "pending", "attempts": 0, "nextAttemptAt": "2026-08-05T14:00:00Z" },
+    { "orderId": "ord-out-of-area",         "jurisdictionId": "jur-central-metro", "status": "pending", "attempts": 0, "nextAttemptAt": "2026-08-05T14:00:00Z" },
+    { "orderId": "ord-hilltop-inspection",  "jurisdictionId": "jur-north-region",  "status": "pending", "attempts": 0, "nextAttemptAt": "2026-08-05T14:00:00Z" },
+    { "orderId": "ord-critical-outage",     "jurisdictionId": "jur-central-metro", "status": "pending", "attempts": 0, "nextAttemptAt": "2026-08-05T14:00:00Z" }
+  ]
+}
