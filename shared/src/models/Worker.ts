@@ -1,11 +1,4 @@
-import {
-  DataTypes,
-  Model,
-  type CreationOptional,
-  type InferAttributes,
-  type InferCreationAttributes,
-  type Sequelize,
-} from "sequelize";
+import { DataTypes, Model, type CreationOptional, type InferAttributes, type InferCreationAttributes, type Sequelize } from "sequelize";
 import type { GeoJSONPoint } from "./geo.js";
 import { baseColumns, isInValidator } from "./base.js";
 
@@ -29,24 +22,49 @@ export class Worker extends Model<InferAttributes<Worker>, InferCreationAttribut
 }
 
 export function initWorkerModel(sequelize: Sequelize): typeof Worker {
-  Worker.init(
-    {
-      ...baseColumns(),
-      jurisdictionId: { type: DataTypes.UUID, allowNull: false },
-      externalId: { type: DataTypes.STRING, allowNull: false },
-      name: { type: DataTypes.STRING, allowNull: false },
-      type: { type: DataTypes.STRING, allowNull: false, validate: isInValidator(WORKER_TYPES) },
-      skills: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
-      maxConcurrent: { type: DataTypes.INTEGER, allowNull: true },
-      location: { type: DataTypes.GEOGRAPHY("POINT", 4326), allowNull: true },
-      status: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: "available",
-        validate: isInValidator(WORKER_STATUSES),
-      },
+  Worker.init({
+    ...baseColumns(),
+    "jurisdictionId": {
+      "type": DataTypes.UUID,
+      "allowNull": false
     },
-    { sequelize, tableName: "workers", modelName: "Worker" },
-  );
+    "externalId": {
+      "type": DataTypes.STRING,
+      "allowNull": false
+    },
+    "name": {
+      "type": DataTypes.STRING,
+      "allowNull": false
+    },
+    "type": {
+      "type": DataTypes.STRING,
+      "allowNull": false,
+      "validate": isInValidator(WORKER_TYPES)
+    },
+    "skills": {
+      "type": DataTypes.JSONB,
+      "allowNull": false,
+      "defaultValue": []
+    },
+    "maxConcurrent": {
+      "type": DataTypes.INTEGER,
+      "allowNull": true
+    },
+    "location": {
+      "type": DataTypes.GEOGRAPHY("POINT", 4326),
+      "allowNull": true
+    },
+    "status": {
+      "type": DataTypes.STRING,
+      "allowNull": false,
+      "defaultValue": "available",
+      "validate": isInValidator(WORKER_STATUSES),
+    }
+  }, {
+    sequelize,
+    "tableName": "workers",
+    "modelName": "Worker"
+  });
+
   return Worker;
 }

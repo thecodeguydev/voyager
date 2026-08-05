@@ -1,11 +1,4 @@
-import {
-  DataTypes,
-  Model,
-  type CreationOptional,
-  type InferAttributes,
-  type InferCreationAttributes,
-  type Sequelize,
-} from "sequelize";
+import { DataTypes, Model, type CreationOptional, type InferAttributes, type InferCreationAttributes, type Sequelize } from "sequelize";
 import { baseColumns, isInValidator } from "./base.js";
 
 export type DispatchQueueStatus = "pending" | "claimed" | "done" | "error";
@@ -34,24 +27,49 @@ export class DispatchQueue extends Model<
 }
 
 export function initDispatchQueueModel(sequelize: Sequelize): typeof DispatchQueue {
-  DispatchQueue.init(
-    {
-      ...baseColumns(),
-      orderId: { type: DataTypes.UUID, allowNull: false },
-      jurisdictionId: { type: DataTypes.UUID, allowNull: false },
-      status: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: "pending",
-        validate: isInValidator(DISPATCH_QUEUE_STATUSES),
-      },
-      claimedBy: { type: DataTypes.STRING, allowNull: true },
-      claimedAt: { type: DataTypes.DATE, allowNull: true },
-      attempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-      nextAttemptAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
-      lastError: { type: DataTypes.TEXT, allowNull: true },
+  DispatchQueue.init({
+    ...baseColumns(),
+    "orderId": {
+      "type": DataTypes.UUID,
+      "allowNull": false
     },
-    { sequelize, tableName: "dispatch_queue", modelName: "DispatchQueue" },
-  );
+    "jurisdictionId": {
+      "type": DataTypes.UUID,
+      "allowNull": false
+    },
+    "status": {
+      "type": DataTypes.STRING,
+      "allowNull": false,
+      "defaultValue": "pending",
+      "validate": isInValidator(DISPATCH_QUEUE_STATUSES),
+    },
+    "claimedBy": {
+      "type": DataTypes.STRING,
+      "allowNull": true
+    },
+    "claimedAt": {
+      "type": DataTypes.DATE,
+      "allowNull": true
+    },
+    "attempts": {
+      "type": DataTypes.INTEGER,
+      "allowNull": false,
+      "defaultValue": 0
+    },
+    "nextAttemptAt": {
+      "type": DataTypes.DATE,
+      "allowNull": false,
+      "defaultValue": DataTypes.NOW
+    },
+    "lastError": {
+      "type": DataTypes.TEXT,
+      "allowNull": true
+    },
+  }, {
+    sequelize,
+    "tableName": "dispatch_queue",
+    "modelName": "DispatchQueue"
+  });
+
   return DispatchQueue;
 }

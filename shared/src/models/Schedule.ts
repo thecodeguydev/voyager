@@ -25,18 +25,43 @@ export class Schedule extends Model<InferAttributes<Schedule>, InferCreationAttr
 }
 
 export function initScheduleModel(sequelize: Sequelize): typeof Schedule {
-  Schedule.init(
-    {
-      ...baseColumns(),
-      workerId: { type: DataTypes.UUID, allowNull: false },
-      dayOfWeek: { type: DataTypes.INTEGER, allowNull: true },
-      date: { type: DataTypes.DATEONLY, allowNull: true },
-      startTime: { type: DataTypes.TIME, allowNull: false },
-      endTime: { type: DataTypes.TIME, allowNull: false },
-      type: { type: DataTypes.STRING, allowNull: false, validate: isInValidator(SCHEDULE_TYPES) },
-      recurring: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  Schedule.init({
+    ...baseColumns(),
+    "workerId": {
+      "type": DataTypes.UUID,
+      "allowNull": false
     },
-    { sequelize, tableName: "schedules", modelName: "Schedule" },
-  );
+    "dayOfWeek": {
+      "type": DataTypes.INTEGER,
+      "allowNull": true
+    },
+    "date": {
+      "type": DataTypes.DATEONLY,
+      "allowNull": true
+    },
+    "startTime": {
+      "type": DataTypes.TIME,
+      "allowNull": false
+    },
+    "endTime": {
+      "type": DataTypes.TIME,
+      "allowNull": false
+    },
+    "type": {
+      "type": DataTypes.STRING,
+      "allowNull": false,
+      "validate": isInValidator(SCHEDULE_TYPES)
+    },
+    "recurring": {
+      "type": DataTypes.BOOLEAN,
+      "allowNull": false,
+      "defaultValue": false
+    },
+  }, { 
+    sequelize, 
+    "tableName": "schedules", 
+    "modelName": "Schedule" 
+  });
+  
   return Schedule;
 }

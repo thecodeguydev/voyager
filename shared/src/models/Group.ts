@@ -22,20 +22,31 @@ export class Group extends Model<InferAttributes<Group>, InferCreationAttributes
 }
 
 export function initGroupModel(sequelize: Sequelize): typeof Group {
-  Group.init(
-    {
-      ...baseColumns(),
-      name: { type: DataTypes.STRING, allowNull: false },
-      code: { type: DataTypes.STRING, allowNull: false, unique: true },
-      description: { type: DataTypes.TEXT, allowNull: true },
-      status: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: "active",
-        validate: isInValidator(GROUP_STATUSES),
-      },
+  Group.init({
+    ...baseColumns(),
+    "name": {
+      "type": DataTypes.STRING,
+      "allowNull": false
     },
-    { sequelize, tableName: "groups", modelName: "Group" },
-  );
+    "code": {
+      "type": DataTypes.STRING,
+      "allowNull": false, "unique": true
+    },
+    "description": {
+      "type": DataTypes.TEXT,
+      "allowNull": true
+    },
+    "status": {
+      "type": DataTypes.STRING,
+      "allowNull": false,
+      "defaultValue": "active",
+      "validate": isInValidator(GROUP_STATUSES),
+    }
+  }, {
+    sequelize,
+    "tableName": "groups",
+    "modelName": "Group"
+  });
+
   return Group;
 }

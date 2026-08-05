@@ -1,11 +1,4 @@
-import {
-  DataTypes,
-  Model,
-  type CreationOptional,
-  type InferAttributes,
-  type InferCreationAttributes,
-  type Sequelize,
-} from "sequelize";
+import { DataTypes, Model, type CreationOptional, type InferAttributes, type InferCreationAttributes, type Sequelize } from "sequelize";
 import { baseColumns, isInValidator } from "./base.js";
 
 export type JurisdictionStatus = "active" | "inactive";
@@ -27,22 +20,39 @@ export class Jurisdiction extends Model<
 }
 
 export function initJurisdictionModel(sequelize: Sequelize): typeof Jurisdiction {
-  Jurisdiction.init(
-    {
-      ...baseColumns(),
-      groupId: { type: DataTypes.UUID, allowNull: false },
-      name: { type: DataTypes.STRING, allowNull: false },
-      code: { type: DataTypes.STRING, allowNull: false },
-      timezone: { type: DataTypes.STRING, allowNull: false },
-      status: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: "active",
-        validate: isInValidator(JURISDICTION_STATUSES),
-      },
-      settingsVersion: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  Jurisdiction.init({
+    ...baseColumns(),
+    "groupId": {
+      "type": DataTypes.UUID,
+      "allowNull": false
     },
-    { sequelize, tableName: "jurisdictions", modelName: "Jurisdiction" },
-  );
+    "name": {
+      "type": DataTypes.STRING,
+      "allowNull": false
+    },
+    "code": {
+      "type": DataTypes.STRING,
+      "allowNull": false
+    },
+    "timezone": {
+      "type": DataTypes.STRING,
+      "allowNull": false
+    },
+    "status": {
+      "type": DataTypes.STRING,
+      "allowNull": false,
+      "defaultValue": "active",
+      "validate": isInValidator(JURISDICTION_STATUSES),
+    },
+    "settingsVersion": {
+      "type": DataTypes.INTEGER,
+      "allowNull": false, "defaultValue": 1
+    }
+  }, {
+    sequelize,
+    "tableName": "jurisdictions",
+    "modelName": "Jurisdiction"
+  });
+
   return Jurisdiction;
 }

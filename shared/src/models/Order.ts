@@ -19,17 +19,9 @@ export type OrderState =
   | "completed"
   | "cancelled"
   | "failed";
+  
 const ORDER_PRIORITY_TIERS: readonly OrderPriorityTier[] = ["critical", "high", "normal", "low"];
-const ORDER_STATES: readonly OrderState[] = [
-  "created",
-  "queued",
-  "dispatched",
-  "accepted",
-  "in_progress",
-  "completed",
-  "cancelled",
-  "failed",
-];
+const ORDER_STATES: readonly OrderState[] = ["created", "queued", "dispatched", "accepted", "in_progress", "completed", "cancelled", "failed"];
 
 export class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>> {
   declare id: CreationOptional<string>;
@@ -46,28 +38,46 @@ export class Order extends Model<InferAttributes<Order>, InferCreationAttributes
 }
 
 export function initOrderModel(sequelize: Sequelize): typeof Order {
-  Order.init(
-    {
-      ...baseColumns(),
-      jurisdictionId: { type: DataTypes.UUID, allowNull: false },
-      externalId: { type: DataTypes.STRING, allowNull: false },
-      type: { type: DataTypes.STRING, allowNull: false },
-      priorityTier: {
-        type: DataTypes.STRING,
-        allowNull: true,
-        validate: isInValidator(ORDER_PRIORITY_TIERS),
-      },
-      payload: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
-      pickup: { type: DataTypes.GEOGRAPHY("POINT", 4326), allowNull: false },
-      state: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: "created",
-        validate: isInValidator(ORDER_STATES),
-      },
-      slaDueAt: { type: DataTypes.DATE, allowNull: true },
+  Order.init({
+    ...baseColumns(),
+    "jurisdictionId": {
+      "type": DataTypes.UUID,
+      "allowNull": false
     },
-    { sequelize, tableName: "orders", modelName: "Order" },
-  );
+    "externalId": {
+      "type": DataTypes.STRING,
+      "allowNull": false
+    },
+    "type": {
+      "type": DataTypes.STRING,
+      "allowNull": false
+    },
+    "priorityTier": {
+      "type": DataTypes.STRING,
+      "allowNull": true,
+      "validate": isInValidator(ORDER_PRIORITY_TIERS),
+    },
+    "payload": {
+      "type": DataTypes.JSONB,
+      "allowNull": false,
+      "defaultValue": {}
+    },
+    "pickup": {
+      "type": DataTypes.GEOGRAPHY("POINT", 4326),
+      "allowNull": false
+    },
+    "state": {
+      "type": DataTypes.STRING,
+      "allowNull": false,
+      "defaultValue": "created",
+      "validate": isInValidator(ORDER_STATES),
+    },
+    "slaDueAt": { "type": DataTypes.DATE, "allowNull": true },
+  }, {
+    sequelize,
+    "tableName": "orders",
+    "modelName": "Order"
+  });
+
   return Order;
 }
