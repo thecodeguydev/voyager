@@ -194,9 +194,26 @@ PostgreSQL-native types. Money as `DECIMAL`, geospatial as PostGIS `GEOGRAPHY` (
 - `orderId`, `jurisdictionId`, `status` (`pending`/`claimed`/`done`/`error`), `claimedBy` (engine instance id), `claimedAt`, `attempts` (INT), `nextAttemptAt`, `lastError`.
 - Index: (`status`, `nextAttemptAt`) — the claim query.
 
+**`engine_instances`** — engine heartbeat / liveness registry (backs `GET /health/engine`).
+- `instanceId` (unique — the id used in `dispatch_queue.claimedBy`), `state` (`healthy`/`stopped`), `lastHeartbeatAt` (DATE), `claimedInFlight` (INT — rows currently claimed but not yet done), `startedAt`, `version` (build/commit, nullable).
+- Written via `UPSERT` on startup and every heartbeat interval (`≤ POLL_INTERVAL_MS`). Health = `now() - lastHeartbeatAt` under a staleness threshold. No FK to other tables; it is a standalone liveness record read across the shared-DB boundary.
+
 **`assignments`** — order ↔ worker dispatch records (lifecycle).
 - `orderId`, `workerId`, `jurisdictionId`, `state` (`dispatched`/`accepted`/`rejected`/`in_progress`/`completed`/`cancelled`/`expired`/`overridden`), `source` (`auto`/`manual`), `score` (DECIMAL, from pipeline; null for manual), `pipelineTrace` (`JSONB` — which stages ran, why this worker won), `overriddenBy` (actor, nullable), `overrideReason` (text, nullable), `dispatchedAt`, `respondedAt`, `completedAt`, `expiresAt`.
 - Index: (`workerId`, `state`) for capacity checks; (`orderId`).
+
+### Inbound webhooks
+
+An alternative **push** transport in front of the same ingestion logic the REST API uses — external systems POST events to Voyager instead of calling each endpoint directly. The webhook maps every payload to the identical internal action (`order.create`, order lifecycle, `worker.status`/`worker.location`), so there is one ingestion path and two transports.
+
+**`webhook_sources`** — registered external senders allowed to push.
+- `groupId` → groups (**scope: a source belongs to one client and may push for any jurisdiction under that group**), `name`, `slug` (unique — the identifier in the receive URL, e.g. `/webhooks/:slug`), `secret` (HMAC signing secret; write-only, never returned in reads), `allowedEvents` (`JSONB` array of event types, or null = all supported), `status` (`active`/`disabled`), `lastReceivedAt` (DATE, nullable).
+- Voyager verifies each request's `X-Voyager-Signature` HMAC against `secret`; a disabled source is rejected.
+
+**`webhook_events`** — receipt log for every inbound delivery (idempotency + audit + replay).
+- `sourceId` → webhook_sources, `groupId`, `eventType`, `dedupeKey` (sender-supplied event id), `signatureValid` (BOOL), `payload` (`JSONB` — raw body as received), `status` (`received`/`processed`/`failed`/`skipped`), `targetEntity` (`order`/`assignment`/`worker`, nullable), `targetId` (nullable — the row created/updated), `error` (text, nullable), `receivedAt` (DATE), `processedAt` (DATE, nullable).
+- **Unique (`sourceId`, `dedupeKey`)** — the idempotency guard: a redelivered event (webhooks retry) is recognized and short-circuited to `skipped` rather than double-applied.
+- Index: (`status`, `receivedAt`) for the retry/replay sweep and a failed-delivery view in the UI.
 
 ### Settings & configuration
 
@@ -334,9 +351,45 @@ REST, JSON. Versioned under `/api/v1`. No auth yet (middleware seam left in plac
 | Settings | `GET /settings?scope=&groupId=&jurisdictionId=`, `PUT /settings/:key`, `GET /settings/:key/audit`, `POST /settings/:key/rollback` |
 | Pipeline | `GET/PUT /jurisdictions/:jid/pipeline`, `GET /pipeline/presets`, `GET .../pipeline/audit` |
 | Metrics | `GET /metrics/definitions`, `POST /metrics/definitions` (custom), `GET /metrics/query?metric=&jurisdictionId=&from=&to=&groupBy=` |
+| **Webhooks (inbound)** | `POST /webhooks/:slug` (external push → same ingestion path), `GET/POST /groups/:gid/webhook-sources`, `GET/PUT/DELETE /webhook-sources/:id`, `POST /webhook-sources/:id/rotate-secret`, `GET /webhook-sources/:id/events` (receipt log) |
 | Health | `GET /health`, `GET /health/engine` |
 
 Order ingestion writes the order + queue row transactionally, then returns `202 Accepted` — the engine dispatches asynchronously.
+
+### Inbound webhooks
+
+`POST /webhooks/:slug` is the single receive endpoint; the `:slug` resolves the `webhook_source` (and therefore its group scope). Processing:
+
+1. **Verify** the `X-Voyager-Signature` HMAC against the source's `secret`; reject a bad signature or a `disabled` source with `401`. Record `signatureValid` on the receipt regardless.
+2. **Deduplicate** on (`sourceId`, `dedupeKey`) — a redelivery returns `200` immediately with the prior result (`status=skipped`), so senders can safely retry.
+3. **Map & apply** — the payload's `eventType` (e.g. `order.create`, `order.accept`, `worker.status`) is dispatched to the **same service call the matching REST endpoint uses**; the affected jurisdiction must belong to the source's group or the event is `failed` with `403`-class detail. For `order.create` this writes the order + `dispatch_queue` row transactionally, identical to `POST /orders`.
+4. **Respond** `202 Accepted` on success (dispatch is async), and always write a `webhook_events` row capturing outcome, `targetEntity`/`targetId`, and any error — the audit and replay trail.
+
+Because every delivery is logged and idempotent, a `failed` event can be **replayed** from the receipt log once the underlying issue is fixed, without the sender resending.
+
+### Health checks
+
+Two endpoints, both dependency-light so a monitor or load balancer can poll them cheaply.
+
+- **`GET /health` — API liveness + readiness.** Returns `200` when the process is up and a trivial DB probe (`SELECT 1`) succeeds within a short timeout; `503` otherwise. Body reports each checked dependency:
+  ```json
+  { "status": "ok", "checks": { "db": "ok" }, "ts": "2026-08-05T12:00:00Z" }
+  ```
+
+- **`GET /health/engine` — engine liveness, seen through the shared DB.** The API has no direct link to the engine, so it reads the engine's **heartbeat** rows (see `engine_instances` below). For each instance it compares `lastHeartbeatAt` against a staleness threshold (a resolved setting, default `3 × POLL_INTERVAL_MS`). Response:
+  ```json
+  {
+    "status": "ok",
+    "instances": [
+      { "instanceId": "engine-7f3a", "state": "healthy", "lastHeartbeatAt": "2026-08-05T11:59:58Z", "claimedInFlight": 4 }
+    ],
+    "healthyCount": 1,
+    "ts": "2026-08-05T12:00:00Z"
+  }
+  ```
+  `status` is `ok` when at least one instance is fresh, `degraded` when every instance is stale (dispatch has effectively stalled), and the endpoint returns `503` in the `degraded` case so external monitors alarm on it. Stale rows older than a retention window are ignored (they represent instances that have permanently exited).
+
+**Heartbeat mechanism.** Each engine instance `UPSERT`s a row into `engine_instances` on startup and then on a fixed interval (`≤ POLL_INTERVAL_MS`), updating `lastHeartbeatAt` and lightweight liveness counters. This is the single source of truth for engine health across the shared-DB boundary — no direct API↔engine channel is introduced, staying consistent with the DB-as-message-bus decision. On graceful shutdown an instance marks itself `stopped`; a crashed instance simply goes stale and is detected by the threshold.
 
 ---
 
