@@ -455,9 +455,17 @@ Voyager/
 
 ## Build Roadmap
 
-**Phase 0 — Foundations**
+**Phase 0 — Foundations** ✅ Done
 - Monorepo scaffolding; `shared/` Sequelize setup for PostgreSQL; enable the PostGIS extension (migration); migrations + seeders; `queue.claim()` using `SKIP LOCKED` + `LISTEN/NOTIFY`.
 - Core models: groups (clients), jurisdictions, zones, workers, schedules, orders — with PostGIS `GEOGRAPHY` columns and GiST indexes.
+
+**Implementation notes (for later phases building on `shared/`):**
+- **Migrations run via `umzug`, not `sequelize-cli`.** The CLI's `.sequelizerc`/config loading is CommonJS-only and conflicts with `shared/`'s native-ESM (`"type": "module"`) package. Migrations are TS files in `shared/migrations/*.ts`; run with `npm run migrate` / `npm run migrate:undo` (workspace `shared`). New migrations should follow the existing `up`/`down` export shape.
+- **`tsx` is a runtime dependency, not dev-only** — the `migrate` and `seed` scripts execute TS directly via `tsx` in any environment (dev, CI, or a future production migration job), not only in local dev.
+- **Enum-style `STRING` columns are validated at the model layer** per this doc's "app-level enums" decision (Data Model intro) — every status/type/state column carries a Sequelize `validate: { isIn: [...] }`, built with the `isInValidator` helper in `shared/src/models/base.ts` (which also holds the shared `id`/`createdAt`/`updatedAt` column trio).
+- **Test suite:** Vitest + `@testcontainers/postgresql` (`postgis/postgis:16-3.4`), one container per run (`shared/vitest.global-setup.ts`), tables truncated between tests (real commits, not transaction rollback — matches TESTING.md's exception for concurrency tests). The seed-world loader is `shared/src/seed/loadSeedWorld.ts`; reusable factory functions (`makeGroup`, `makeWorker`, `makeOrder`, `makeSchedule`, `makeZoneWorker`, …) live in `shared/src/test/factories.ts` and are re-exported at the `@voyager/shared/test` subpath for `api`/`engine` to reuse.
+- **Known flake:** the `queue.claim()` concurrency test has under-claimed (returned fewer rows than pending) in roughly 2 of ~25 runs, both times correlated with heavy host load (a first-ever cold container start; immediately after a large rebuild). Clock skew between Node and the container was measured and ruled out (~3ms, and in the wrong direction to explain it). The claim SQL matches the `SKIP LOCKED` pattern documented above exactly, and rerunning always passes. Root cause unconfirmed — if this recurs, investigate rather than dismiss it as environmental.
+- Deferred to later phases per TESTING.md's own phase alignment (not a Phase 0 gap): a crash-recovery/stale-claim reclaim test (needs the `scheduler`/expiry mechanism, which doesn't exist yet) and transaction-rollback test isolation (only matters once non-concurrency integration tests exist in volume).
 
 **Phase 1 — Ingestion & CRUD API**
 - Express app; CRUD for all core entities; order ingestion (`POST /orders`) writing order + `dispatch_queue`.
@@ -494,6 +502,9 @@ Voyager/
 ## Technical Standards
 
 - **Stack:** Next.js (interface), Node.js + Express (api), Node.js (engine), Sequelize ORM, PostgreSQL with the PostGIS extension.
+- **TypeScript everywhere** (`shared`/`api`/`engine`/`interface`), native ESM (`"type": "module"`, `NodeNext` module resolution) — no CommonJS, no decorator-based ORM libraries (plain Sequelize `InferAttributes`/`InferCreationAttributes` style, not `sequelize-typescript`).
+- **npm workspaces** for the monorepo (no Turborepo/Nx at this scale); each service is added as a workspace when its phase starts rather than scaffolded empty ahead of time.
+- **Vitest + `@testcontainers/postgresql`** for the test suite across all packages, per `planning/TESTING.md`.
 - Use **latest stable** versions of all libraries and idiomatic APIs.
 - Data fed in from outside sources via the API.
 - **Postgres-native:** PostGIS `GEOGRAPHY` types with GiST indexes for all geo (`ST_DWithin`/`ST_Covers`/`ST_Distance`); `JSONB` for flexible config; `SKIP LOCKED` + `LISTEN/NOTIFY` for the queue; app-level string enums.

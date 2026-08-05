@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-voyager}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voyager}
+      POSTGRES_DB: ${POSTGRES_DB:-voyager}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - voyager-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-voyager}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  voyager-postgres-data:

@@ -1,0 +1,34 @@
+{
+  "name": "@voyager/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./test": "./dist/test/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "migrate": "tsx src/db/migrate.ts up",
+    "migrate:undo": "tsx src/db/migrate.ts down",
+    "seed": "tsx src/seed/run.ts"
+  },
+  "dependencies": {
+    "dotenv": "17.4.2",
+    "pg": "8.22.0",
+    "sequelize": "6.37.8",
+    "tsx": "4.23.8",
+    "umzug": "3.8.3",
+    "uuid": "14.0.1"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "12.1.0",
+    "@types/node": "26.1.2",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}

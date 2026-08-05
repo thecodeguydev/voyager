@@ -1,0 +1,17 @@
+{
+  "name": "voyager",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Voyager dispatch engine monorepo",
+  "workspaces": [
+    "shared"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "npm run test --workspace=shared",
+    "migrate": "npm run migrate --workspace=shared",
+    "seed": "npm run seed --workspace=shared"
+  }
+}
