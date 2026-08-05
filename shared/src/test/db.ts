@@ -4,9 +4,11 @@ import { createSequelize } from "../db/sequelize.js";
 /** Connects to the Testcontainers database started by vitest.global-setup.ts. */
 export function getTestSequelize(options?: Parameters<typeof createSequelize>[1]): Sequelize {
   const url = process.env.TEST_DATABASE_URL;
+  
   if (!url) {
     throw new Error("TEST_DATABASE_URL is not set — did vitest.global-setup.ts run?");
   }
+
   return createSequelize(url, options);
 }
 

@@ -510,6 +510,7 @@ Voyager/
 - **Postgres-native:** PostGIS `GEOGRAPHY` types with GiST indexes for all geo (`ST_DWithin`/`ST_Covers`/`ST_Distance`); `JSONB` for flexible config; `SKIP LOCKED` + `LISTEN/NOTIFY` for the queue; app-level string enums.
 - Clear, concise docstrings; short modules, methods, and functions; names that explain themselves.
 - Identify root causes with evidence before fixing; no workarounds.
+- Use readable and clean proper coding standards.
 
 ---
 

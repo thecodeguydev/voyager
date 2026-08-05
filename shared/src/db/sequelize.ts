@@ -8,12 +8,14 @@ import { Sequelize, type Options } from "sequelize";
  */
 export function createSequelize(databaseUrl?: string, options?: Partial<Options>): Sequelize {
   const url = databaseUrl ?? process.env.DATABASE_URL;
+  
   if (!url) {
     throw new Error("DATABASE_URL is not set");
   }
+
   return new Sequelize(url, {
-    dialect: "postgres",
-    logging: false,
+    "dialect": "postgres",
+    "logging": false,
     ...options,
   });
 }
