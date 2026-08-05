@@ -86,3 +86,37 @@ Ship **SWR polling** for the MVP (already the plan). Adopt **SSE** — not WebSo
 
 ### Recommendation
 Keep auth **deferred** for the MVP as planned, but **do not let the seam rot** — keep the no-op middleware and `actor` placeholders honest so the later drop-in stays clean. When adopting, start with **flat global roles** (admin/dispatcher/viewer) for the human UI, add **group/jurisdiction scoping** second, and treat **external API callers** (worker/order systems) as a separate service-credential track rather than bending human RBAC to fit them.
+
+---
+
+## 4. Routing metrics as a dispatch rule (traffic, construction, accidents)
+
+**Status:** Proposed (not in plan). The plan's Scoring stage ranks candidates by `ST_Distance` (great-circle) and Tiebreak's `nearest` does the same — both are **as-the-crow-flies** and know nothing about roads, traffic, construction, or accidents.
+
+**The core reframe:** distance is already a *proxy* for the real quantity — how expensive it is to get a worker to an order. Traffic/construction/accidents aren't a brand-new rule so much as a **correction to that cost function**. The quantity you actually want is **estimated time-to-arrival (ETA)**; road conditions are inputs that inflate it. So the design replaces/augments the `distance` scoring input with a **travel-cost (ETA)** input and lets road conditions raise that cost.
+
+**Suggested shape:**
+
+- **A `RouteCost` annotator stage** in the composable pipeline, run *before* Scoring. It enriches (does not filter) each candidate with `{ etaSeconds, distanceMeters, incidentPenalty }` into `ctx`. **Scoring** then weights `travelTime` in place of raw `distance`; **Tiebreak** `nearest` becomes nearest-*by-ETA* for free. Optionally a **hard SLA gate** in TierFilter drops candidates whose ETA exceeds the order's remaining SLA time. Keeping "compute the cost" separate from "weight the cost" is the key seam — the cost computation can be async/batched/cached without Scoring caring how the number was produced.
+
+- **A `RoutingProvider` adapter interface** (same strategy discipline as the stages): `matrix(origins, destinations, at) -> [{ etaSeconds, distanceMeters }]`. Three implementations, built in order of increasing accuracy/cost, provider chosen per jurisdiction via the settings cascade:
+  1. **`StraightLine`** (PostGIS `ST_Distance`) — the default and always-available fallback; what the plan does today.
+  2. **`IncidentOverlay`** — PostGIS-native, no routing engine. Test whether the straight path (or a buffered corridor) intersects active incidents via `ST_DWithin`/`ST_Intersects` and add a penalty scaled by severity. Cheap; captures most of the value with zero new infrastructure.
+  3. **`ExternalRouting`** — a traffic-aware provider (Mapbox / HERE / Google, or self-hosted **Valhalla / OSRM**). Real road ETAs with live traffic; feed owned closures in where supported.
+
+- **An `incidents` (road_conditions) table** — traffic/construction/accidents are time-and-space-bounded events, modeled as first-class ingested data: `jurisdictionId`, `type` (`traffic`/`construction`/`accident`/`closure`), `geometry` (`GEOGRAPHY` — point/linestring/polygon), `severity`, `speedFactor`, `validFrom`/`validUntil`, `source`, `payload` (`JSONB`). GiST index on `geometry` plus a validity-window index, so "active incidents near this route" is one indexed PostGIS query. Natural fit for the **inbound-webhook** path — a city traffic feed or maps provider pushes incidents in, exactly like orders.
+
+### Pros
+- **Fixes a real accuracy gap** — a nearer worker stuck behind a closure is genuinely farther; ETA-based ranking dispatches the worker who actually arrives first.
+- **Fits the composable pipeline** — a new annotator stage + a heavier Scoring input; no new architectural concepts, and it's toggleable/reorderable per jurisdiction like every other stage.
+- **Tiered, infra-light adoption** — the adapter seam lets `StraightLine` ship now and `IncidentOverlay` follow with **zero external dependencies**, honoring the plan's "no extra infrastructure" bias; external routing is a later drop-in behind the same interface.
+- **Reuses existing plumbing** — settings cascade for provider/weights/timeouts, inbound webhooks for incident ingestion, `pipelineTrace` for explainability, the metric dictionary for new telemetry.
+
+### Cons
+- **Hot-path latency** — routing/ETA calls are slow and dispatch is real-time. Needs **matrix requests** (one call for N candidates → 1 order), a **cache** keyed by `(origin-cell, dest-cell, time-bucket)` (snap to H3/geohash + ~5-min buckets), and a **per-dispatch timeout with fallback to `StraightLine`** so a slow provider degrades instead of stalling the queue.
+- **Data freshness & sourcing** — incident/traffic data is only as good as its feed; stale `validUntil` windows or a dead feed silently revert quality toward straight-line (acceptable, but must be observable).
+- **External-provider cost & coupling** — `ExternalRouting` adds a paid dependency, rate limits, and an availability risk on the dispatch path; the fallback matters.
+- **Explainability burden** — "farther worker won" needs the provider, ETA, and incident penalties recorded in `pipelineTrace` or dispatchers won't trust it.
+
+### Recommendation
+Adopt in tiers behind the adapter seam. Ship the **`RoutingProvider` interface + `StraightLine` default** first (near-zero cost, unblocks the stage). Add **`IncidentOverlay`** as the first real routing rule since it's fully PostGIS-native and needs no new infrastructure, with incidents ingested via the existing webhook path. Defer **`ExternalRouting`** until a jurisdiction's density justifies the cost and coupling — and only with matrix batching, cell/time-bucket caching, and straight-line fallback in place. Emit routing telemetry (provider latency, cache hit-rate, ETA-vs-straight-line delta, fallback count, incident-penalty applications) from day one so the accuracy gains are measurable.
