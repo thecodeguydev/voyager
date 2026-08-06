@@ -143,3 +143,30 @@ Adopt in tiers behind the adapter seam. Ship the **`RoutingProvider` interface +
 
 ### Recommendation
 Defer until a dashboard genuinely needs history beyond the raw retention window. Partitioning + retention alone covers the MVP. When adopted, start with **hourly + daily** rollups for the built-in metrics, and handle percentile metrics with a per-bucket sketch rather than pretending averages compose.
+
+---
+
+## 6. Worker ↔ zone coverage assignment (API + UI)
+
+**Status:** Known gap, surfaced building Phase 5. The data model has always had `zone_workers` (the many-to-many join between `workers` and `zones` — see Data Model's Core entities), and the `matcher`'s candidate filter has used it since Phase 2 (zone ∩ on-duty ∩ under-capacity). But **no route in the API's endpoint table ever exposed it** — there is no `GET/POST /workers/:id/zones`, `/zones/:id/workers`, or equivalent. The Workers screen (Phase 5) therefore shows a worker's status/skills/schedule but has no way to assign or view zone coverage; the only way to populate `zone_workers` today is a direct DB write (e.g. a seeder).
+
+**The idea:** Add the missing CRUD surface for zone coverage so dispatchers can actually configure which zones a worker covers, instead of that being seed-data-only.
+
+**Suggested shape:** mirror the existing `schedules` nested-resource pattern (`GET/POST /workers/:id/schedules`, `PUT/DELETE /schedules/:id`) rather than inventing a new shape:
+- `GET /workers/:id/zones` — list a worker's covered zones.
+- `POST /workers/:id/zones` — add coverage, body `{ zoneId }`; validate `zoneId`'s jurisdiction matches the worker's jurisdiction (workers and zones both roll up to one jurisdiction, so a cross-jurisdiction assignment should be rejected the same way a cross-jurisdiction reassign is).
+- `DELETE /workers/:id/zones/:zoneId` — remove coverage.
+- Optionally the inverse `GET /zones/:id/workers` for the Jurisdiction detail screen's zone view.
+No new table or model needed — `ZoneWorker` already exists in `shared/src/models`; this is purely a routes + service addition in `api/`, following Key Design Decision #3 (thin API layer over shared models).
+
+### Pros
+- **Closes a real, already-load-bearing gap** — the matcher has depended on `zone_workers` since Phase 2; today it can only be populated out-of-band, which is fine for seed data but not for an operating client.
+- **Small, well-precedented addition** — the `schedules` nested-resource pattern is a direct template; no new architectural decision required.
+- **Unblocks the Workers screen** — Phase 5's roster page can then show and edit zone coverage alongside schedule and status, matching PLAN.md's original "availability (schedule + zone)" description of that screen.
+
+### Cons
+- **Another endpoint pair to keep audited/validated consistently** — cross-jurisdiction validation and any future manual-override-style audit trail (zone coverage isn't currently in `AuditLog.entity`'s enum) need the same care as every other mutating endpoint.
+- **UI scope** — the Workers screen needs a zone picker/multi-select added, plus (optionally) a zone-centric view on the Jurisdiction detail page; not large, but not zero.
+
+### Recommendation
+Adopt in the next phase that touches `api/` — this is a small, low-risk addition that closes a gap the engine has silently depended on since Phase 2. Follow the `schedules` nested-route precedent exactly (same validation style, same response shapes) and wire the Workers screen's zone assignment UI once the endpoints exist.

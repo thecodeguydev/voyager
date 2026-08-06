@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/*
+ * Voyager design tokens.
+ * Brand hexes are PLAN.md's primary/secondary scheme, verbatim.
+ * Chart hexes are validated steps derived from those brand hues via the
+ * dataviz skill's six-check color formula (lightness band / chroma floor /
+ * CVD separation / normal-vision floor / contrast) for both light and dark
+ * chart surfaces — see planning notes; do not hand-edit without re-validating.
+ */
+:root {
+  color-scheme: light;
+
+  /* Brand */
+  --brand-vega-blue: #002ee5;
+  --brand-reach-blue: #050533;
+  --brand-dust-white: #f7ede5;
+  --brand-betel-orange: #ff7a00;
+  --brand-aldebaran-yellow: #fccf0d;
+  --brand-archenary-grey: #dededa;
+  --brand-rigel-green: #405259;
+  --brand-canopus-violet: #b379f6;
+  --brand-procyan-green: #54f2a3;
+  --brand-antares-yellow: #f5eaad;
+  --brand-arcturus-red: #e73443;
+
+  /* Chrome */
+  --surface-page: #fbfaf8;
+  --surface-card: #ffffff;
+  --surface-sunken: var(--brand-dust-white);
+  --text-primary: #0b0b0b;
+  --text-secondary: var(--brand-rigel-green);
+  --text-muted: #8a8a86;
+  --border-hairline: rgba(11, 11, 11, 0.1);
+  --border-strong: rgba(11, 11, 11, 0.18);
+  --brand-action: var(--brand-vega-blue);
+  --brand-action-hover: #0025bd;
+
+  /* Chart — categorical (fixed order, never cycled) */
+  --chart-series-1: #ff7a00;
+  --chart-series-2: #00c379;
+  --chart-series-3: #002ee5;
+  --chart-series-4: #c5a100;
+  --chart-series-5: #b379f6;
+  --chart-series-6: #e73443;
+
+  /* Chart — sequential (magnitude), Vega Blue hue, light -> dark */
+  --chart-seq-100: #dde8ff;
+  --chart-seq-200: #bad1ff;
+  --chart-seq-300: #93b6ff;
+  --chart-seq-400: #6797ff;
+  --chart-seq-500: #306aff;
+  --chart-seq-600: #083de2;
+  --chart-seq-700: #0100ba;
+
+  /* Chart — diverging (polarity): Vega Blue <-> Arcturus Red, neutral mid */
+  --chart-div-cool: #002ee5;
+  --chart-div-warm: #e73443;
+  --chart-div-mid: #f0efec;
+
+  /* Chart — status (fixed scale, never themed, always icon + label) */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+
+  --chart-surface: var(--surface-card);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+
+    --surface-page: #0a0a12;
+    --surface-card: var(--brand-reach-blue);
+    --surface-sunken: #0d0d1f;
+    --text-primary: #ffffff;
+    --text-secondary: #c7ccd6;
+    --text-muted: #8b8fa3;
+    --border-hairline: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --brand-action: #3a73ff;
+    --brand-action-hover: #6591ff;
+
+    --chart-series-1: #de6900;
+    --chart-series-2: #00995d;
+    --chart-series-3: #3a73ff;
+    --chart-series-4: #a18300;
+    --chart-series-5: #ac62fa;
+    --chart-series-6: #e6293e;
+
+    --chart-div-cool: #3a73ff;
+    --chart-div-warm: #e6293e;
+    --chart-div-mid: #383843;
+
+    --chart-surface: var(--surface-card);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface-page: #0a0a12;
+  --surface-card: var(--brand-reach-blue);
+  --surface-sunken: #0d0d1f;
+  --text-primary: #ffffff;
+  --text-secondary: #c7ccd6;
+  --text-muted: #8b8fa3;
+  --border-hairline: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --brand-action: #3a73ff;
+  --brand-action-hover: #6591ff;
+
+  --chart-series-1: #de6900;
+  --chart-series-2: #00995d;
+  --chart-series-3: #3a73ff;
+  --chart-series-4: #a18300;
+  --chart-series-5: #ac62fa;
+  --chart-series-6: #e6293e;
+
+  --chart-div-cool: #3a73ff;
+  --chart-div-warm: #e6293e;
+  --chart-div-mid: #383843;
+
+  --chart-surface: var(--surface-card);
+}
+
+@theme inline {
+  --color-surface-page: var(--surface-page);
+  --color-surface-card: var(--surface-card);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-border-hairline: var(--border-hairline);
+  --color-border-strong: var(--border-strong);
+  --color-brand-action: var(--brand-action);
+  --color-brand-action-hover: var(--brand-action-hover);
+  --color-brand-orange: var(--brand-betel-orange);
+  --color-brand-yellow: var(--brand-aldebaran-yellow);
+  --color-brand-violet: var(--brand-canopus-violet);
+  --color-brand-green: var(--brand-procyan-green);
+  --color-brand-red: var(--brand-arcturus-red);
+  --color-status-good: var(--status-good);
+  --color-status-warning: var(--status-warning);
+  --color-status-serious: var(--status-serious);
+  --color-status-critical: var(--status-critical);
+
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+* {
+  border-color: var(--border-hairline);
+}

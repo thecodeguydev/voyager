@@ -1,5 +1,13 @@
-import "dotenv/config";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
 import { randomUUID } from "node:crypto";
+
+// See shared/src/db/sequelize.ts for why this resolves ".env" explicitly against the
+// repo root instead of relying on bare `dotenv/config` (which uses process.cwd(),
+// wrong here since `npm run dev --workspace=engine` sets cwd to this workspace).
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+dotenv.config({ path: path.join(repoRoot, ".env") });
 
 export interface EngineConfig {
   databaseUrl: string;
