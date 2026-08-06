@@ -16,6 +16,8 @@ const ALL_TABLES = [
   "webhook_events",
   "webhook_sources",
   "audit_log",
+  "metric_points",
+  "engine_instances",
   "settings",
   "assignments",
   "dispatch_queue",

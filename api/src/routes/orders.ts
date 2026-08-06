@@ -13,6 +13,12 @@ import {
   reassignOrder,
   unassignOrder,
 } from "../services/assignmentService.js";
+import {
+  acceptOrder,
+  completeOrder,
+  progressOrder,
+  rejectOrder,
+} from "../services/lifecycleService.js";
 
 const listQuerySchema = z.object({ jurisdictionId: z.uuid().optional(), state: z.string().optional() });
 
@@ -32,6 +38,7 @@ const reassignSchema = z.object({
   force: z.boolean().optional(),
 });
 const unassignSchema = z.object({ reason: z.string().min(1) });
+const lifecycleEventSchema = z.object({ reason: z.string().min(1).optional() });
 
 function serializeOrder(order: Order) {
   const json = order.toJSON();
@@ -58,6 +65,42 @@ export function createOrdersRouter(db: AppDb): Router {
   router.post<{ id: string }>("/:id/cancel", validateParams(idParamsSchema), async (req, res) => {
     res.json(serializeOrder(await cancelOrder(db, req.params.id)));
   });
+
+  router.post<{ id: string }>(
+    "/:id/accept",
+    validateParams(idParamsSchema),
+    validateBody(lifecycleEventSchema),
+    async (req, res) => {
+      res.json(await acceptOrder(db, req.params.id, { ...req.body, actor: actorFrom(req) }));
+    },
+  );
+
+  router.post<{ id: string }>(
+    "/:id/reject",
+    validateParams(idParamsSchema),
+    validateBody(lifecycleEventSchema),
+    async (req, res) => {
+      res.json(await rejectOrder(db, req.params.id, { ...req.body, actor: actorFrom(req) }));
+    },
+  );
+
+  router.post<{ id: string }>(
+    "/:id/progress",
+    validateParams(idParamsSchema),
+    validateBody(lifecycleEventSchema),
+    async (req, res) => {
+      res.json(await progressOrder(db, req.params.id, { ...req.body, actor: actorFrom(req) }));
+    },
+  );
+
+  router.post<{ id: string }>(
+    "/:id/complete",
+    validateParams(idParamsSchema),
+    validateBody(lifecycleEventSchema),
+    async (req, res) => {
+      res.json(await completeOrder(db, req.params.id, { ...req.body, actor: actorFrom(req) }));
+    },
+  );
 
   router.get<{ id: string }>("/:id/assignments", validateParams(idParamsSchema), async (req, res) => {
     res.json(await listOrderAssignments(db, req.params.id));

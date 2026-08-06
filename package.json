@@ -5,13 +5,14 @@
   "description": "Voyager dispatch engine monorepo",
   "workspaces": [
     "shared",
-    "api"
+    "api",
+    "engine"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "build": "npm run build --workspace=shared && npm run build --workspace=api",
+    "build": "npm run build --workspace=shared && npm run build --workspace=api && npm run build --workspace=engine",
     "pretest": "npm run build --workspace=shared",
     "test": "npm run test --workspaces --if-present",
     "migrate": "npm run migrate --workspace=shared",

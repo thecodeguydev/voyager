@@ -8,6 +8,10 @@ import type { Worker } from "../models/Worker.js";
 import type { ZoneWorker } from "../models/ZoneWorker.js";
 import type { Schedule } from "../models/Schedule.js";
 import type { Order } from "../models/Order.js";
+import type { Assignment } from "../models/Assignment.js";
+import type { DispatchQueue } from "../models/DispatchQueue.js";
+import type { Setting } from "../models/Setting.js";
+import type { EngineInstance } from "../models/EngineInstance.js";
 
 /** A GeoJSON Point at (lng, lat) — the shape Sequelize expects for a GEOGRAPHY(POINT) column. */
 export function point(lng: number, lat: number): GeoJSONPoint {
@@ -120,6 +124,76 @@ export function makeOrder(
     pickup: point(-79.39, 43.65),
     state: "queued",
     slaDueAt: null,
+    ...overrides,
+  };
+}
+
+export function makeAssignment(
+  orderId: string,
+  workerId: string,
+  jurisdictionId: string,
+  overrides: Partial<CreationAttributes<Assignment>> = {},
+): CreationAttributes<Assignment> {
+  return {
+    orderId,
+    workerId,
+    jurisdictionId,
+    state: "dispatched",
+    source: "auto",
+    score: null,
+    pipelineTrace: null,
+    overriddenBy: null,
+    overrideReason: null,
+    respondedAt: null,
+    completedAt: null,
+    expiresAt: null,
+    ...overrides,
+  };
+}
+
+export function makeDispatchQueue(
+  orderId: string,
+  jurisdictionId: string,
+  overrides: Partial<CreationAttributes<DispatchQueue>> = {},
+): CreationAttributes<DispatchQueue> {
+  return {
+    orderId,
+    jurisdictionId,
+    status: "pending",
+    claimedBy: null,
+    claimedAt: null,
+    attempts: 0,
+    nextAttemptAt: new Date(),
+    lastError: null,
+    ...overrides,
+  };
+}
+
+export function makeSetting(
+  overrides: Partial<CreationAttributes<Setting>> = {},
+): CreationAttributes<Setting> {
+  return {
+    scope: "global",
+    groupId: null,
+    jurisdictionId: null,
+    key: `test.key.${randomUUID().slice(0, 8)}`,
+    value: "test-value",
+    dataType: "string",
+    description: null,
+    ...overrides,
+  };
+}
+
+export function makeEngineInstance(
+  overrides: Partial<CreationAttributes<EngineInstance>> = {},
+): CreationAttributes<EngineInstance> {
+  return {
+    instanceId: `engine-${randomUUID().slice(0, 8)}`,
+    state: "healthy",
+    lastHeartbeatAt: new Date(),
+    claimedInFlight: 0,
+    startedAt: new Date(),
+    version: null,
     ...overrides,
   };
 }

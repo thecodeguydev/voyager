@@ -1,9 +1,16 @@
-import type { Assignment, AuditLog } from "@voyager/shared";
+import {
+  ACTIVE_ASSIGNMENT_STATES,
+  TERMINAL_ORDER_STATES,
+  enqueueDispatch,
+  isWorkerInZoneFor,
+  isWorkerOnDuty,
+  resolveEffectiveCapacity,
+  type Assignment,
+  type AuditLog,
+} from "@voyager/shared";
 import type { AppDb } from "../db.js";
 import { badRequest, notFound } from "../lib/httpErrors.js";
-import { TERMINAL_ORDER_STATES } from "./orderService.js";
-
-const ACTIVE_ASSIGNMENT_STATES = ["dispatched", "accepted", "in_progress"];
+import { recordAssignmentAudit } from "./assignmentAudit.js";
 
 export interface ReassignInput {
   workerId: string;
@@ -19,15 +26,15 @@ export interface ReassignResult {
 
 /**
  * Manually assigns (or reassigns) an order to a worker, bypassing the dispatch pipeline.
- * A capacity warning surfaces rather than blocks unless `force` is set — off-duty/zone
- * warnings need the Phase 2 matcher and aren't checked here yet.
+ * Capacity, off-duty, and out-of-zone are soft constraints — they surface as warnings rather
+ * than blocking, unless `force` is set.
  */
 export async function reassignOrder(
   db: AppDb,
   orderId: string,
   input: ReassignInput,
 ): Promise<ReassignResult> {
-  const { Order, Worker, Assignment, DispatchQueue, AuditLog } = db.models;
+  const { Order, Worker, Assignment, DispatchQueue } = db.models;
 
   return db.sequelize.transaction(async (transaction) => {
     const order = await Order.findByPk(orderId, { transaction });
@@ -42,25 +49,29 @@ export async function reassignOrder(
       throw badRequest("Worker's jurisdiction does not match the order's jurisdiction");
     }
 
-    const effectiveCapacity =
-      worker.maxConcurrent ??
-      (await db.settingsService.resolve("worker.max_concurrent", {
-        jurisdictionId: worker.jurisdictionId,
-      })) ??
-      Infinity;
+    const effectiveCapacity = await resolveEffectiveCapacity(worker, db.settingsService);
     const activeCount = await Assignment.count({
       where: { workerId: worker.id, state: ACTIVE_ASSIGNMENT_STATES },
       transaction,
     });
 
     const warnings: string[] = [];
-    if (activeCount >= Number(effectiveCapacity)) {
+    if (activeCount >= effectiveCapacity) {
       warnings.push(
         `Worker is at or over capacity (${activeCount}/${effectiveCapacity} active assignments)`,
       );
-      if (!input.force) {
-        throw badRequest("Worker is at capacity; pass force=true to override", { warnings });
-      }
+    }
+    if (!(await isWorkerOnDuty(db.sequelize, worker.id))) {
+      warnings.push("Worker is off duty right now");
+    }
+    if (!(await isWorkerInZoneFor(db.sequelize, worker.id, order.pickup))) {
+      warnings.push("Worker does not cover a zone containing the order's pickup point");
+    }
+
+    if (warnings.length > 0 && !input.force) {
+      throw badRequest("Worker has one or more soft-constraint warnings; pass force=true to override", {
+        warnings,
+      });
     }
 
     const current = await Assignment.findOne({
@@ -91,19 +102,15 @@ export async function reassignOrder(
       { where: { orderId: order.id, status: ["pending", "claimed"] }, transaction },
     );
 
-    await AuditLog.create(
-      {
-        entity: "assignment",
-        entityId: assignment.id,
-        jurisdictionId: order.jurisdictionId,
-        action: "reassign",
-        actor: input.actor,
-        reason: input.reason,
-        before,
-        after: assignment.toJSON(),
-      },
-      { transaction },
-    );
+    await recordAssignmentAudit(db, {
+      assignment,
+      jurisdictionId: order.jurisdictionId,
+      action: "reassign",
+      actor: input.actor,
+      reason: input.reason,
+      before,
+      transaction,
+    });
 
     return { assignment, warnings };
   });
@@ -116,7 +123,7 @@ export interface UnassignInput {
 
 /** Overrides the current active assignment and re-queues the order for automatic dispatch. */
 export async function unassignOrder(db: AppDb, orderId: string, input: UnassignInput) {
-  const { Order, Assignment, DispatchQueue, AuditLog } = db.models;
+  const { Order, Assignment } = db.models;
 
   return db.sequelize.transaction(async (transaction) => {
     const order = await Order.findByPk(orderId, { transaction });
@@ -131,30 +138,17 @@ export async function unassignOrder(db: AppDb, orderId: string, input: UnassignI
     const before = current.toJSON();
     await current.update({ state: "overridden" }, { transaction });
     await order.update({ state: "queued" }, { transaction });
-    await DispatchQueue.create(
-      {
-        orderId: order.id,
-        jurisdictionId: order.jurisdictionId,
-        status: "pending",
-        attempts: 0,
-        nextAttemptAt: new Date(),
-      },
-      { transaction },
-    );
+    await enqueueDispatch(db.models, { orderId: order.id, jurisdictionId: order.jurisdictionId }, transaction);
 
-    await AuditLog.create(
-      {
-        entity: "assignment",
-        entityId: current.id,
-        jurisdictionId: order.jurisdictionId,
-        action: "unassign",
-        actor: input.actor,
-        reason: input.reason,
-        before,
-        after: current.toJSON(),
-      },
-      { transaction },
-    );
+    await recordAssignmentAudit(db, {
+      assignment: current,
+      jurisdictionId: order.jurisdictionId,
+      action: "unassign",
+      actor: input.actor,
+      reason: input.reason,
+      before,
+      transaction,
+    });
 
     return order;
   });

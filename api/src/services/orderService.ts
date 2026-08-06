@@ -1,4 +1,4 @@
-import type { Order, OrderPriorityTier } from "@voyager/shared";
+import { TERMINAL_ORDER_STATES, enqueueDispatch, type Order, type OrderPriorityTier } from "@voyager/shared";
 import { UniqueConstraintError, type WhereOptions } from "sequelize";
 import type { AppDb } from "../db.js";
 import { badRequest, notFound } from "../lib/httpErrors.js";
@@ -19,8 +19,6 @@ export interface CreateOrderResult {
   created: boolean;
 }
 
-export const TERMINAL_ORDER_STATES = ["completed", "cancelled", "failed"];
-
 /**
  * Writes the order + a pending dispatch_queue row transactionally. Idempotent on
  * (jurisdictionId, externalId) — a resubmission returns the existing order instead of erroring.
@@ -30,7 +28,7 @@ export const TERMINAL_ORDER_STATES = ["completed", "cancelled", "failed"];
  * unique index and is caught below, falling back to the winner's row instead of a 500.
  */
 export async function createOrder(db: AppDb, input: CreateOrderInput): Promise<CreateOrderResult> {
-  const { Jurisdiction, Order, DispatchQueue } = db.models;
+  const { Jurisdiction, Order } = db.models;
 
   const jurisdiction = await Jurisdiction.findByPk(input.jurisdictionId);
   if (!jurisdiction) throw notFound(`Jurisdiction ${input.jurisdictionId} not found`);
@@ -56,16 +54,7 @@ export async function createOrder(db: AppDb, input: CreateOrderInput): Promise<C
         { transaction },
       );
 
-      await DispatchQueue.create(
-        {
-          orderId: created.id,
-          jurisdictionId: created.jurisdictionId,
-          status: "pending",
-          attempts: 0,
-          nextAttemptAt: new Date(),
-        },
-        { transaction },
-      );
+      await enqueueDispatch(db.models, { orderId: created.id, jurisdictionId: created.jurisdictionId }, transaction);
 
       return created;
     });

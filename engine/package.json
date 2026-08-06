@@ -1,0 +1,28 @@
+{
+  "name": "@voyager/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "pretest": "npm run build --prefix ../shared",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@voyager/shared": "*",
+    "dotenv": "17.4.2",
+    "pg": "8.22.0",
+    "sequelize": "6.37.8"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.2",
+    "@types/pg": "8.20.4",
+    "tsx": "4.23.8",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}

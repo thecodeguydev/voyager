@@ -12,6 +12,9 @@ import { Setting, initSettingModel } from "./Setting.js";
 import { AuditLog, initAuditLogModel } from "./AuditLog.js";
 import { WebhookSource, initWebhookSourceModel } from "./WebhookSource.js";
 import { WebhookEvent, initWebhookEventModel } from "./WebhookEvent.js";
+import { EngineInstance, initEngineInstanceModel } from "./EngineInstance.js";
+import { MetricDefinition, initMetricDefinitionModel } from "./MetricDefinition.js";
+import { MetricPoint, initMetricPointModel } from "./MetricPoint.js";
 
 export * from "./geo.js";
 export * from "./Group.js";
@@ -27,6 +30,9 @@ export * from "./Setting.js";
 export * from "./AuditLog.js";
 export * from "./WebhookSource.js";
 export * from "./WebhookEvent.js";
+export * from "./EngineInstance.js";
+export * from "./MetricDefinition.js";
+export * from "./MetricPoint.js";
 
 const initializedSequelizes = new WeakSet<Sequelize>();
 
@@ -51,6 +57,9 @@ export function initModels(sequelize: Sequelize) {
       AuditLog,
       WebhookSource,
       WebhookEvent,
+      EngineInstance,
+      MetricDefinition,
+      MetricPoint,
     };
   }
   initializedSequelizes.add(sequelize);
@@ -68,6 +77,9 @@ export function initModels(sequelize: Sequelize) {
   initAuditLogModel(sequelize);
   initWebhookSourceModel(sequelize);
   initWebhookEventModel(sequelize);
+  initEngineInstanceModel(sequelize);
+  initMetricDefinitionModel(sequelize);
+  initMetricPointModel(sequelize);
 
   Group.hasMany(Jurisdiction, { 
     "foreignKey": "groupId", 
@@ -179,6 +191,18 @@ export function initModels(sequelize: Sequelize) {
   Group.hasMany(WebhookEvent, { foreignKey: "groupId", as: "webhookEvents" });
   WebhookEvent.belongsTo(Group, { foreignKey: "groupId", as: "group" });
 
+  Jurisdiction.hasMany(MetricDefinition, { foreignKey: "jurisdictionId", as: "metricDefinitions" });
+  MetricDefinition.belongsTo(Jurisdiction, { foreignKey: "jurisdictionId", as: "jurisdiction" });
+
+  Jurisdiction.hasMany(MetricPoint, { foreignKey: "jurisdictionId", as: "metricPoints" });
+  MetricPoint.belongsTo(Jurisdiction, { foreignKey: "jurisdictionId", as: "jurisdiction" });
+
+  Worker.hasMany(MetricPoint, { foreignKey: "workerId", as: "metricPoints" });
+  MetricPoint.belongsTo(Worker, { foreignKey: "workerId", as: "worker" });
+
+  Order.hasMany(MetricPoint, { foreignKey: "orderId", as: "metricPoints" });
+  MetricPoint.belongsTo(Order, { foreignKey: "orderId", as: "order" });
+
   return {
     Group,
     Jurisdiction,
@@ -193,6 +217,9 @@ export function initModels(sequelize: Sequelize) {
     AuditLog,
     WebhookSource,
     WebhookEvent,
+    EngineInstance,
+    MetricDefinition,
+    MetricPoint,
   };
 }
 
