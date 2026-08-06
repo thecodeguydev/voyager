@@ -8,6 +8,7 @@ import { Schedule, initScheduleModel } from "./Schedule.js";
 import { Order, initOrderModel } from "./Order.js";
 import { DispatchQueue, initDispatchQueueModel } from "./DispatchQueue.js";
 import { Assignment, initAssignmentModel } from "./Assignment.js";
+import { PipelineConfig, initPipelineConfigModel } from "./PipelineConfig.js";
 import { Setting, initSettingModel } from "./Setting.js";
 import { AuditLog, initAuditLogModel } from "./AuditLog.js";
 import { WebhookSource, initWebhookSourceModel } from "./WebhookSource.js";
@@ -26,6 +27,7 @@ export * from "./Schedule.js";
 export * from "./Order.js";
 export * from "./DispatchQueue.js";
 export * from "./Assignment.js";
+export * from "./PipelineConfig.js";
 export * from "./Setting.js";
 export * from "./AuditLog.js";
 export * from "./WebhookSource.js";
@@ -53,6 +55,7 @@ export function initModels(sequelize: Sequelize) {
       Order,
       DispatchQueue,
       Assignment,
+      PipelineConfig,
       Setting,
       AuditLog,
       WebhookSource,
@@ -73,6 +76,7 @@ export function initModels(sequelize: Sequelize) {
   initOrderModel(sequelize);
   initDispatchQueueModel(sequelize);
   initAssignmentModel(sequelize);
+  initPipelineConfigModel(sequelize);
   initSettingModel(sequelize);
   initAuditLogModel(sequelize);
   initWebhookSourceModel(sequelize);
@@ -170,6 +174,9 @@ export function initModels(sequelize: Sequelize) {
   Jurisdiction.hasMany(Assignment, { foreignKey: "jurisdictionId", as: "assignments" });
   Assignment.belongsTo(Jurisdiction, { foreignKey: "jurisdictionId", as: "jurisdiction" });
 
+  Jurisdiction.hasOne(PipelineConfig, { foreignKey: "jurisdictionId", as: "pipelineConfig" });
+  PipelineConfig.belongsTo(Jurisdiction, { foreignKey: "jurisdictionId", as: "jurisdiction" });
+
   Group.hasMany(Setting, { foreignKey: "groupId", as: "settings" });
   Setting.belongsTo(Group, { foreignKey: "groupId", as: "group" });
 
@@ -213,6 +220,7 @@ export function initModels(sequelize: Sequelize) {
     Order,
     DispatchQueue,
     Assignment,
+    PipelineConfig,
     Setting,
     AuditLog,
     WebhookSource,

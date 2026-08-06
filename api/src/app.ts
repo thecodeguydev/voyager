@@ -11,6 +11,7 @@ import { createSchedulesNestedRouter, createSchedulesRouter } from "./routes/sch
 import { createOrdersRouter } from "./routes/orders.js";
 import { createAssignmentsRouter } from "./routes/assignments.js";
 import { createSettingsRouter } from "./routes/settings.js";
+import { createPipelineNestedRouter, createPipelinePresetsRouter } from "./routes/pipeline.js";
 import {
   createWebhookSourcesNestedRouter,
   createWebhookSourcesRouter,
@@ -34,6 +35,7 @@ export function createApp(db: AppDb): Express {
   app.use("/api/v1/groups", createGroupsRouter(db));
 
   app.use("/api/v1/jurisdictions/:jid/zones", createZonesNestedRouter(db));
+  app.use("/api/v1/jurisdictions/:jid/pipeline", createPipelineNestedRouter(db));
   app.use("/api/v1/jurisdictions", createJurisdictionsRouter(db));
 
   app.use("/api/v1/zones", createZonesRouter(db));
@@ -46,6 +48,7 @@ export function createApp(db: AppDb): Express {
   app.use("/api/v1/orders", createOrdersRouter(db));
   app.use("/api/v1/assignments", createAssignmentsRouter(db));
   app.use("/api/v1/settings", createSettingsRouter(db));
+  app.use("/api/v1/pipeline", createPipelinePresetsRouter());
   app.use("/api/v1/webhook-sources", createWebhookSourcesRouter(db));
   app.use("/api/v1/health", createHealthRouter(db));
 

@@ -1,17 +1,8 @@
-import type { Order } from "@voyager/shared";
+import { DEFAULT_SCORING_WEIGHTS, type Order, type ScoringStageConfig } from "@voyager/shared";
 import type { Candidate, Stage, StageContext } from "./stage.js";
 
-export interface ScoringWeights {
-  distance: number;
-  skillMatch: number;
-  waitTime: number;
-}
-
-export const DEFAULT_SCORING_WEIGHTS: ScoringWeights = {
-  distance: 0.5,
-  skillMatch: 0.3,
-  waitTime: 0.2,
-};
+export type ScoringWeights = ScoringStageConfig["weights"];
+export { DEFAULT_SCORING_WEIGHTS };
 
 // Beyond this distance the distance component scores 0 — a normalization reference, not a hard cutoff.
 const MAX_SCORING_DISTANCE_METERS = 20_000;
