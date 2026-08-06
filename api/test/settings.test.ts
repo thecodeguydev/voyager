@@ -1,6 +1,6 @@
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import request from "supertest";
-import { makeGroup, makeJurisdiction, truncateAll } from "@voyager/shared/test";
+import { makeGroup, makeJurisdiction, makeSetting, truncateAll } from "@voyager/shared/test";
 import { createApp } from "../src/app.js";
 import { getTestDb } from "./testDb.js";
 
@@ -80,5 +80,71 @@ describe("settings cascade + audit + rollback", () => {
 
     expect(rolledBack.status).toBe(200);
     expect(rolledBack.body.value).toBe(created.body.value);
+  });
+
+  it("resolves effective setting via HTTP endpoint", async () => {
+    const group = await db.models.Group.create(makeGroup());
+    const jurisdiction = await db.models.Jurisdiction.create(makeJurisdiction(group.id));
+
+    await request(app)
+      .put("/api/v1/settings/worker.max_concurrent")
+      .send({ scope: "global", value: 3 });
+    await request(app)
+      .put("/api/v1/settings/worker.max_concurrent")
+      .send({ scope: "group", groupId: group.id, value: 4 });
+
+    const resolved = await request(app)
+      .get("/api/v1/settings/effective")
+      .query({ key: "worker.max_concurrent", jurisdictionId: jurisdiction.id });
+
+    expect(resolved.status).toBe(200);
+    expect(resolved.body).toMatchObject({
+      key: "worker.max_concurrent",
+      scope: "group",
+      value: 4,
+      groupId: group.id,
+    });
+  });
+
+  it("400s effective resolution without jurisdictionId/groupId", async () => {
+    const res = await request(app)
+      .get("/api/v1/settings/effective")
+      .query({ key: "worker.max_concurrent" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("404s effective resolution when key is unset", async () => {
+    const group = await db.models.Group.create(makeGroup());
+    const jurisdiction = await db.models.Jurisdiction.create(makeJurisdiction(group.id));
+
+    const res = await request(app)
+      .get("/api/v1/settings/effective")
+      .query({ key: "missing.setting", jurisdictionId: jurisdiction.id });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("NOT_FOUND");
+  });
+
+  it("resolves effective setting with groupId-only context", async () => {
+    const group = await db.models.Group.create(makeGroup());
+    await db.models.Setting.create(makeSetting({ scope: "global", key: "engine.heartbeat.staleness_ms", value: 15000 }));
+    await db.models.Setting.create(
+      makeSetting({
+        scope: "group",
+        groupId: group.id,
+        jurisdictionId: null,
+        key: "engine.heartbeat.staleness_ms",
+        value: 9000,
+      }),
+    );
+
+    const res = await request(app)
+      .get("/api/v1/settings/effective")
+      .query({ key: "engine.heartbeat.staleness_ms", groupId: group.id });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ scope: "group", value: 9000, groupId: group.id });
   });
 });

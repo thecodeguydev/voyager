@@ -30,11 +30,11 @@ export class SettingsService {
     private readonly models: Models,
   ) {}
 
-  /** Effective value for `key` given a jurisdiction and/or group context, or undefined if unset anywhere. */
-  async resolve(
+  /** Effective Setting row for `key` in jurisdiction/group context, or null when unset at every scope. */
+  async resolveEntry(
     key: string,
     context: { jurisdictionId?: string; groupId?: string } = {},
-  ): Promise<unknown> {
+  ): Promise<Setting | null> {
     let { groupId } = context;
     const { jurisdictionId } = context;
 
@@ -49,16 +49,24 @@ export class SettingsService {
       const row = await this.models.Setting.findOne({
         where: { scope: "jurisdiction", jurisdictionId, key },
       });
-      if (row) return row.value;
+      if (row) return row;
     }
 
     if (groupId) {
       const row = await this.models.Setting.findOne({ where: { scope: "group", groupId, key } });
-      if (row) return row.value;
+      if (row) return row;
     }
 
-    const globalRow = await this.models.Setting.findOne({ where: { scope: "global", key } });
-    return globalRow?.value;
+    return this.models.Setting.findOne({ where: { scope: "global", key } });
+  }
+
+  /** Effective value for `key` given a jurisdiction and/or group context, or undefined if unset anywhere. */
+  async resolve(
+    key: string,
+    context: { jurisdictionId?: string; groupId?: string } = {},
+  ): Promise<unknown> {
+    const setting = await this.resolveEntry(key, context);
+    return setting?.value;
   }
 
   /** Finds the single Setting row at an exact scope, or null if it doesn't exist yet. */

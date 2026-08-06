@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { AppDb } from "../db.js";
 import { actorFrom } from "../lib/actor.js";
-import { notFound } from "../lib/httpErrors.js";
+import { badRequest, notFound } from "../lib/httpErrors.js";
 import { validateBody, validateParams, validateQuery } from "../middleware/validate.js";
 
 const keyParamsSchema = z.object({ key: z.string().min(1) });
@@ -52,12 +52,30 @@ const upsertBodySchema = z
 
 const rollbackBodySchema = z.object({ auditLogId: z.uuid() });
 
+const resolveQuerySchema = z.object({
+  key: z.string().min(1),
+  jurisdictionId: z.uuid().optional(),
+  groupId: z.uuid().optional(),
+});
+
 export function createSettingsRouter(db: AppDb): Router {
   const router = Router();
   const { settingsService } = db;
 
   router.get("/", validateQuery(listQuerySchema), async (req, res) => {
     res.json(await settingsService.list(req.query as z.infer<typeof listQuerySchema>));
+  });
+
+  router.get("/effective", validateQuery(resolveQuerySchema), async (req, res) => {
+    const { key, jurisdictionId, groupId } = req.query as z.infer<typeof resolveQuerySchema>;
+    if (!jurisdictionId && !groupId) {
+      throw badRequest("Either jurisdictionId or groupId must be provided");
+    }
+
+    const setting = await settingsService.resolveEntry(key, { jurisdictionId, groupId });
+    if (!setting) throw notFound(`No effective setting found for key ${key}`);
+
+    res.json(setting);
   });
 
   router.put<{ key: string }>(

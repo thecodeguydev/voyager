@@ -159,6 +159,17 @@ This restores the setting's `value`/`dataType`/`description` to whatever they we
 
 ---
 
-## Known gap
+## Effective lookup endpoint
 
-There is no `GET /settings/effective?key=&jurisdictionId=` endpoint. To resolve the cascade over HTTP today you make up to three calls (jurisdiction → group → global) and pick the first non-empty result yourself — see step-by-step above. This is a documented gap, not an oversight to work around with a client-side hack; if you're building the Interface's Settings screen, this is exactly the pattern it already uses (fetch all three scopes, merge in the browser).
+The API now exposes `GET /settings/effective?key=&jurisdictionId=` (or `groupId=`) to return the single resolved setting row using the same jurisdiction → group → global precedence as `SettingsService.resolve()`.
+
+Behavior:
+- Requires `key` and at least one of `jurisdictionId` or `groupId`; otherwise `400 VALIDATION_ERROR`.
+- Returns `200` with the effective `Setting` row (including its winning `scope`) when found.
+- Returns `404 NOT_FOUND` when the key is unset at every scope reachable from the provided context.
+
+Example:
+
+```bash
+curl -s "http://localhost:3000/api/v1/settings/effective?key=worker.max_concurrent&jurisdictionId=$CENTRAL_METRO_ID" | jq
+```
