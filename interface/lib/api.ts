@@ -72,6 +72,16 @@ function query(params: Record<string, string | undefined>) {
   return s ? `?${s}` : "";
 }
 
+// Assignment.score is a Sequelize DECIMAL column — the pg driver returns Postgres NUMERIC
+// as a string (to avoid float precision loss), and nothing casts it server-side. Normalize
+// it to a real number here, once, so every caller can trust the `number | null` type in
+// lib/types.ts instead of each render site needing its own Number(...) coercion.
+const normalizeAssignment = (a: Assignment): Assignment => ({
+  ...a,
+  score: a.score === null ? null : Number(a.score),
+});
+const normalizeAssignments = (rows: Assignment[]): Assignment[] => rows.map(normalizeAssignment);
+
 export const api = {
   groups: {
     list: () => get<Group[]>("/groups"),
@@ -128,20 +138,25 @@ export const api = {
       get<Order[]>(`/orders${query({ jurisdictionId: filter?.jurisdictionId, state: filter?.state })}`),
     get: (id: string) => get<Order>(`/orders/${id}`),
     cancel: (id: string) => post<Order>(`/orders/${id}/cancel`),
-    accept: (id: string, reason?: string) => post<Assignment>(`/orders/${id}/accept`, { reason }),
-    reject: (id: string, reason?: string) => post<Assignment>(`/orders/${id}/reject`, { reason }),
-    progress: (id: string, reason?: string) => post<Assignment>(`/orders/${id}/progress`, { reason }),
-    complete: (id: string, reason?: string) => post<Assignment>(`/orders/${id}/complete`, { reason }),
-    assignments: (id: string) => get<Assignment[]>(`/orders/${id}/assignments`),
+    accept: (id: string, reason?: string) => post<Assignment>(`/orders/${id}/accept`, { reason }).then(normalizeAssignment),
+    reject: (id: string, reason?: string) => post<Assignment>(`/orders/${id}/reject`, { reason }).then(normalizeAssignment),
+    progress: (id: string, reason?: string) => post<Assignment>(`/orders/${id}/progress`, { reason }).then(normalizeAssignment),
+    complete: (id: string, reason?: string) => post<Assignment>(`/orders/${id}/complete`, { reason }).then(normalizeAssignment),
+    assignments: (id: string) => get<Assignment[]>(`/orders/${id}/assignments`).then(normalizeAssignments),
     reassign: (id: string, body: { workerId: string; reason: string; force?: boolean }) =>
-      post<{ assignment: Assignment; warnings: string[] }>(`/orders/${id}/reassign`, body),
+      post<{ assignment: Assignment; warnings: string[] }>(`/orders/${id}/reassign`, body).then((r) => ({
+        ...r,
+        assignment: normalizeAssignment(r.assignment),
+      })),
     unassign: (id: string, reason: string) => post<Order>(`/orders/${id}/unassign`, { reason }),
     audit: (id: string) => get<AuditLog[]>(`/orders/${id}/audit`),
   },
 
   assignments: {
     list: (filter?: { workerId?: string; jurisdictionId?: string }) =>
-      get<Assignment[]>(`/assignments${query({ workerId: filter?.workerId, jurisdictionId: filter?.jurisdictionId })}`),
+      get<Assignment[]>(`/assignments${query({ workerId: filter?.workerId, jurisdictionId: filter?.jurisdictionId })}`).then(
+        normalizeAssignments,
+      ),
   },
 
   settings: {

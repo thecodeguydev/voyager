@@ -1,6 +1,13 @@
 # Voyager — Running the Stack
 
-How to bring up all three services (`api`, `engine`, `interface`) plus Postgres/PostGIS for local development. For what's being built, see `PLAN.md`; for how it's tested, see `TESTING.md`.
+How to bring up all three services (`api`, `engine`, `interface`) plus Postgres/PostGIS for local development. For what's being built, see `PLAN.md`; for how it's tested (automated test suite), see `TESTING.md`.
+
+**Using the API once it's running:**
+- `API_REFERENCE.md` — every endpoint, request/response shape, and error envelope.
+- `SETTINGS_GUIDE.md` — the global → group → jurisdiction settings cascade, with worked examples.
+- `PIPELINE_GUIDE.md` — configuring the composable dispatch pipeline (stages, presets, custom configs).
+- `METRICS_GUIDE.md` — the built-in metric dictionary, querying, and defining custom metrics.
+- `TESTING_GUIDE.md` — hands-on walkthroughs (simple dispatch, manual override, custom pipeline, settings cascade, webhooks) to exercise and understand the running stack.
 
 ---
 
