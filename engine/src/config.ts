@@ -7,6 +7,9 @@ export interface EngineConfig {
   pollIntervalMs: number;
   batchSize: number;
   heartbeatIntervalMs: number;
+  expirySweepIntervalMs: number;
+  gaugeSampleIntervalMs: number;
+  partitionMaintenanceIntervalMs: number;
 }
 
 /** Engine runtime configuration, read once at process startup. */
@@ -22,5 +25,8 @@ export function loadConfig(): EngineConfig {
     pollIntervalMs,
     batchSize: Number(process.env.DISPATCH_BATCH_SIZE ?? 10),
     heartbeatIntervalMs: Number(process.env.HEARTBEAT_INTERVAL_MS ?? pollIntervalMs),
+    expirySweepIntervalMs: Number(process.env.SLA_SWEEP_INTERVAL_MS ?? 10_000),
+    gaugeSampleIntervalMs: Number(process.env.GAUGE_SAMPLE_INTERVAL_MS ?? 30_000),
+    partitionMaintenanceIntervalMs: Number(process.env.PARTITION_MAINTENANCE_INTERVAL_MS ?? 86_400_000),
   };
 }

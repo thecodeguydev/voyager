@@ -45,8 +45,8 @@ describe("assigner.assign — transactional capacity recheck", () => {
     const { order: orderB, queueRow: queueRowB } = await seedQueuedOrder(jurisdiction.id);
 
     const [resultA, resultB] = await Promise.all([
-      assign(db, { order: orderA, ranked: [candidateFor(worker)], pipelineTrace: [], dispatchQueueRowId: queueRowA.id }),
-      assign(db, { order: orderB, ranked: [candidateFor(worker)], pipelineTrace: [], dispatchQueueRowId: queueRowB.id }),
+      assign(db, { order: orderA, ranked: [candidateFor(worker)], pipelineTrace: [], dispatchQueueRowId: queueRowA.id, responseTimeoutMs: 300_000 }),
+      assign(db, { order: orderB, ranked: [candidateFor(worker)], pipelineTrace: [], dispatchQueueRowId: queueRowB.id, responseTimeoutMs: 300_000 }),
     ]);
 
     expect([resultA, resultB].filter(Boolean)).toHaveLength(1);
@@ -77,6 +77,7 @@ describe("assigner.assign — transactional capacity recheck", () => {
       ranked: [candidateFor(fullWorker), candidateFor(openWorker)],
       pipelineTrace: [],
       dispatchQueueRowId: queueRow.id,
+      responseTimeoutMs: 300_000,
     });
 
     expect(assignment?.workerId).toBe(openWorker.id);
@@ -100,6 +101,7 @@ describe("assigner.assign — transactional capacity recheck", () => {
       ranked: [candidateFor(worker)],
       pipelineTrace: [],
       dispatchQueueRowId: queueRow.id,
+      responseTimeoutMs: 300_000,
     });
     expect(assignment).toBeNull();
   });
@@ -124,6 +126,7 @@ describe("assigner.assign — transactional capacity recheck", () => {
       ranked: [candidateFor(worker)],
       pipelineTrace: [],
       dispatchQueueRowId: queueRow.id,
+      responseTimeoutMs: 300_000,
     });
 
     expect(assignment).toBeNull();
@@ -142,6 +145,7 @@ describe("assigner.assign — transactional capacity recheck", () => {
       ranked: [candidate],
       pipelineTrace: [{ stage: "scoring", candidateCount: 1 }],
       dispatchQueueRowId: queueRow.id,
+      responseTimeoutMs: 300_000,
     });
 
     expect(Number(assignment?.score)).toBeCloseTo(0.75);
@@ -150,6 +154,7 @@ describe("assigner.assign — transactional capacity recheck", () => {
       candidate: { scoring: { score: 0.75 } },
     });
     expect(assignment?.source).toBe("auto");
+    expect(assignment?.expiresAt?.getTime()).toBe(assignment!.dispatchedAt.getTime() + 300_000);
 
     await order.reload();
     expect(order.state).toBe("dispatched");

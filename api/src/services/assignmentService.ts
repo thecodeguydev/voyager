@@ -1,16 +1,19 @@
 import {
   ACTIVE_ASSIGNMENT_STATES,
+  METRIC_KEYS,
   TERMINAL_ORDER_STATES,
+  emitMetric,
   enqueueDispatch,
   isWorkerInZoneFor,
   isWorkerOnDuty,
+  recordAssignmentAudit,
   resolveEffectiveCapacity,
+  resolveResponseTimeoutMs,
   type Assignment,
   type AuditLog,
 } from "@voyager/shared";
 import type { AppDb } from "../db.js";
 import { badRequest, notFound } from "../lib/httpErrors.js";
-import { recordAssignmentAudit } from "./assignmentAudit.js";
 
 export interface ReassignInput {
   workerId: string;
@@ -36,7 +39,7 @@ export async function reassignOrder(
 ): Promise<ReassignResult> {
   const { Order, Worker, Assignment, DispatchQueue } = db.models;
 
-  return db.sequelize.transaction(async (transaction) => {
+  const result = await db.sequelize.transaction(async (transaction) => {
     const order = await Order.findByPk(orderId, { transaction });
     if (!order) throw notFound(`Order ${orderId} not found`);
     if (TERMINAL_ORDER_STATES.includes(order.state)) {
@@ -74,8 +77,11 @@ export async function reassignOrder(
       });
     }
 
+    // Locked so a concurrent scheduler expiry sweep can't be silently overwritten by this
+    // override — mirrors lifecycleService.ts's identical recheck-under-lock discipline.
     const current = await Assignment.findOne({
       where: { orderId: order.id, state: ACTIVE_ASSIGNMENT_STATES },
+      lock: transaction.LOCK.UPDATE,
       transaction,
     });
     const before = current ? current.toJSON() : null;
@@ -83,6 +89,8 @@ export async function reassignOrder(
       await current.update({ state: "overridden" }, { transaction });
     }
 
+    const dispatchedAt = new Date();
+    const responseTimeoutMs = await resolveResponseTimeoutMs(db.settingsService, order.jurisdictionId);
     const assignment = await Assignment.create(
       {
         orderId: order.id,
@@ -92,6 +100,8 @@ export async function reassignOrder(
         source: "manual",
         overriddenBy: input.actor,
         overrideReason: input.reason,
+        dispatchedAt,
+        expiresAt: new Date(dispatchedAt.getTime() + responseTimeoutMs),
       },
       { transaction },
     );
@@ -114,6 +124,21 @@ export async function reassignOrder(
 
     return { assignment, warnings };
   });
+
+  // Emitted after commit, in its own try/catch — telemetry can never fail the reassign response.
+  try {
+    await emitMetric(db, {
+      metricKey: METRIC_KEYS.ASSIGNMENT_MANUAL_OVERRIDE_RATE,
+      jurisdictionId: result.assignment.jurisdictionId,
+      workerId: result.assignment.workerId,
+      orderId: result.assignment.orderId,
+      value: 1, // every assignment reaching this path is manual (source="manual")
+    });
+  } catch (err) {
+    console.error(`[api] manual-override telemetry failed for assignment ${result.assignment.id}`, err);
+  }
+
+  return result;
 }
 
 export interface UnassignInput {
@@ -129,8 +154,11 @@ export async function unassignOrder(db: AppDb, orderId: string, input: UnassignI
     const order = await Order.findByPk(orderId, { transaction });
     if (!order) throw notFound(`Order ${orderId} not found`);
 
+    // Locked for the same reason as reassignOrder above — a concurrent expiry sweep on this
+    // exact assignment must not be silently overwritten by an unassign racing it.
     const current = await Assignment.findOne({
       where: { orderId: order.id, state: ACTIVE_ASSIGNMENT_STATES },
+      lock: transaction.LOCK.UPDATE,
       transaction,
     });
     if (!current) throw badRequest(`Order ${orderId} has no active assignment to unassign`);

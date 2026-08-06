@@ -1,4 +1,11 @@
-import { TERMINAL_ORDER_STATES, enqueueDispatch, type Order, type OrderPriorityTier } from "@voyager/shared";
+import {
+  METRIC_KEYS,
+  TERMINAL_ORDER_STATES,
+  emitMetric,
+  enqueueDispatch,
+  type Order,
+  type OrderPriorityTier,
+} from "@voyager/shared";
 import { UniqueConstraintError, type WhereOptions } from "sequelize";
 import type { AppDb } from "../db.js";
 import { badRequest, notFound } from "../lib/httpErrors.js";
@@ -58,6 +65,20 @@ export async function createOrder(db: AppDb, input: CreateOrderInput): Promise<C
 
       return created;
     });
+
+    // Emitted after commit, in its own try/catch — telemetry can never fail order creation. Only
+    // a genuinely new order counts (not an idempotent resubmission), so orders/hour reflects real
+    // volume — realized entirely at query time via GET /metrics/query?groupBy=hour.
+    try {
+      await emitMetric(db, {
+        metricKey: METRIC_KEYS.ORDERS_CREATED,
+        jurisdictionId: order.jurisdictionId,
+        orderId: order.id,
+        value: 1,
+      });
+    } catch (err) {
+      console.error(`[api] order-creation telemetry failed for order ${order.id}`, err);
+    }
 
     return { order, created: true };
   } catch (err) {

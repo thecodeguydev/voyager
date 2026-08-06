@@ -77,6 +77,88 @@ describe("order lifecycle events", () => {
     expect(pendingRow).not.toBeNull();
   });
 
+  it("sets respondedAt on accept and emits the acceptance/rejection-rate pair", async () => {
+    const { order, assignment } = await seedDispatchedOrder();
+
+    await request(app).post(`/api/v1/orders/${order.id}/accept`).send({});
+
+    await assignment.reload();
+    expect(assignment.respondedAt).not.toBeNull();
+
+    const points = await db.models.MetricPoint.findAll({ where: { orderId: order.id } });
+    const acceptance = points.find((p) => p.metricKey === "assignment.acceptance_rate");
+    const rejection = points.find((p) => p.metricKey === "assignment.rejection_rate");
+    expect(Number(acceptance?.value)).toBe(1);
+    expect(Number(rejection?.value)).toBe(0);
+  });
+
+  it("sets respondedAt on reject and emits the acceptance/rejection-rate pair", async () => {
+    const { order, assignment } = await seedDispatchedOrder();
+
+    await request(app).post(`/api/v1/orders/${order.id}/reject`).send({ reason: "too far" });
+
+    await assignment.reload();
+    expect(assignment.respondedAt).not.toBeNull();
+
+    const points = await db.models.MetricPoint.findAll({ where: { orderId: order.id } });
+    const acceptance = points.find((p) => p.metricKey === "assignment.acceptance_rate");
+    const rejection = points.find((p) => p.metricKey === "assignment.rejection_rate");
+    expect(Number(acceptance?.value)).toBe(0);
+    expect(Number(rejection?.value)).toBe(1);
+  });
+
+  it("sets completedAt and emits assignment.duration_ms on complete", async () => {
+    const { order, assignment } = await seedDispatchedOrder();
+    await request(app).post(`/api/v1/orders/${order.id}/accept`).send({});
+    await request(app).post(`/api/v1/orders/${order.id}/progress`).send({});
+    await request(app).post(`/api/v1/orders/${order.id}/complete`).send({});
+
+    await assignment.reload();
+    expect(assignment.completedAt).not.toBeNull();
+
+    const duration = await db.models.MetricPoint.findOne({
+      where: { orderId: order.id, metricKey: "assignment.duration_ms" },
+    });
+    expect(duration).not.toBeNull();
+    expect(Number(duration?.value)).toBeGreaterThanOrEqual(0);
+  });
+
+  it("emits sla.compliance_rate on complete only when the order has an slaDueAt", async () => {
+    const group = await db.models.Group.create(makeGroup());
+    const jurisdiction = await db.models.Jurisdiction.create(makeJurisdiction(group.id));
+    const worker = await db.models.Worker.create(makeWorker(jurisdiction.id));
+    const orderWithSla = await db.models.Order.create(
+      makeOrder(jurisdiction.id, { state: "dispatched", slaDueAt: new Date(Date.now() + 60_000) }),
+    );
+    await db.models.Assignment.create(
+      makeAssignment(orderWithSla.id, worker.id, jurisdiction.id, { state: "dispatched" }),
+    );
+    const orderWithoutSla = await db.models.Order.create(
+      makeOrder(jurisdiction.id, { externalId: "NO-SLA", state: "dispatched", slaDueAt: null }),
+    );
+    await db.models.Assignment.create(
+      makeAssignment(orderWithoutSla.id, worker.id, jurisdiction.id, { state: "dispatched" }),
+    );
+
+    await request(app).post(`/api/v1/orders/${orderWithSla.id}/accept`).send({});
+    await request(app).post(`/api/v1/orders/${orderWithSla.id}/progress`).send({});
+    await request(app).post(`/api/v1/orders/${orderWithSla.id}/complete`).send({});
+
+    await request(app).post(`/api/v1/orders/${orderWithoutSla.id}/accept`).send({});
+    await request(app).post(`/api/v1/orders/${orderWithoutSla.id}/progress`).send({});
+    await request(app).post(`/api/v1/orders/${orderWithoutSla.id}/complete`).send({});
+
+    const withSlaMetric = await db.models.MetricPoint.findOne({
+      where: { orderId: orderWithSla.id, metricKey: "sla.compliance_rate" },
+    });
+    expect(Number(withSlaMetric?.value)).toBe(1);
+
+    const withoutSlaMetric = await db.models.MetricPoint.findOne({
+      where: { orderId: orderWithoutSla.id, metricKey: "sla.compliance_rate" },
+    });
+    expect(withoutSlaMetric).toBeNull();
+  });
+
   it("rejects an illegal transition (progress before accept)", async () => {
     const { order } = await seedDispatchedOrder();
 

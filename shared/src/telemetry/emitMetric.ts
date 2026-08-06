@@ -1,4 +1,4 @@
-import type { AppDb } from "@voyager/shared";
+import type { AppDb } from "../db/createDb.js";
 
 export interface EmitMetricInput {
   metricKey: string;
@@ -9,7 +9,11 @@ export interface EmitMetricInput {
   dimensions?: Record<string, unknown>;
 }
 
-/** Writes one telemetry data point. See PLAN.md "telemetry" / "Built-in metrics". */
+/**
+ * Writes one telemetry data point. Lives in `shared/` (not just `engine/`) because both `api`
+ * (lifecycle/manual-override events) and `engine` (dispatch/expiry events) emit metrics — see
+ * PLAN.md "telemetry" / "Built-in metrics".
+ */
 export async function emitMetric(db: AppDb, input: EmitMetricInput): Promise<void> {
   await db.models.MetricPoint.create({
     metricKey: input.metricKey,

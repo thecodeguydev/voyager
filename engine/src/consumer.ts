@@ -1,9 +1,8 @@
-import { claim, type AppDb, type ClaimedDispatchRow } from "@voyager/shared";
+import { claim, emitMetric, METRIC_KEYS, type AppDb, type ClaimedDispatchRow } from "@voyager/shared";
 import { resolveContext } from "./resolver.js";
 import { findCandidates } from "./matcher.js";
 import { runPipeline } from "./pipeline/runner.js";
 import { assign } from "./assigner.js";
-import { emitMetric } from "./telemetry.js";
 import type { SettingsCache } from "./settingsCache.js";
 
 export interface QueueConsumerOptions {
@@ -50,6 +49,7 @@ async function processRow(db: AppDb, cache: SettingsCache, row: ClaimedDispatchR
       ranked,
       pipelineTrace: trace,
       dispatchQueueRowId: row.id,
+      responseTimeoutMs: context.responseTimeoutMs,
     });
     if (!assignment) {
       await requeueForRetry(db, row, "All candidates lost capacity before assignment could be locked in");
@@ -72,18 +72,25 @@ async function emitDispatchMetrics(
 ): Promise<void> {
   try {
     await emitMetric(db, {
-      metricKey: "dispatch.response_time_ms",
+      metricKey: METRIC_KEYS.DISPATCH_RESPONSE_TIME_MS,
       jurisdictionId: order.jurisdictionId,
       orderId: order.id,
       workerId: assignment.workerId,
       value: assignment.dispatchedAt.getTime() - order.createdAt.getTime(),
     });
     await emitMetric(db, {
-      metricKey: "dispatch.time_to_assign_ms",
+      metricKey: METRIC_KEYS.DISPATCH_TIME_TO_ASSIGN_MS,
       jurisdictionId: order.jurisdictionId,
       orderId: order.id,
       workerId: assignment.workerId,
       value: assignment.dispatchedAt.getTime() - row.claimedAt.getTime(),
+    });
+    await emitMetric(db, {
+      metricKey: METRIC_KEYS.ASSIGNMENT_MANUAL_OVERRIDE_RATE,
+      jurisdictionId: order.jurisdictionId,
+      orderId: order.id,
+      workerId: assignment.workerId,
+      value: 0, // every assignment reaching this path is auto (source="auto")
     });
   } catch (err) {
     console.error(`[engine] failed to emit telemetry for order ${order.id}`, err);

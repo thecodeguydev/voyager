@@ -12,6 +12,8 @@ import type { Assignment } from "../models/Assignment.js";
 import type { DispatchQueue } from "../models/DispatchQueue.js";
 import type { Setting } from "../models/Setting.js";
 import type { EngineInstance } from "../models/EngineInstance.js";
+import type { MetricDefinition } from "../models/MetricDefinition.js";
+import type { MetricPoint } from "../models/MetricPoint.js";
 
 /** A GeoJSON Point at (lng, lat) — the shape Sequelize expects for a GEOGRAPHY(POINT) column. */
 export function point(lng: number, lat: number): GeoJSONPoint {
@@ -180,6 +182,38 @@ export function makeSetting(
     value: "test-value",
     dataType: "string",
     description: null,
+    ...overrides,
+  };
+}
+
+export function makeMetricDefinition(
+  overrides: Partial<CreationAttributes<MetricDefinition>> = {},
+): CreationAttributes<MetricDefinition> {
+  return {
+    key: `test.metric.${randomUUID().slice(0, 8)}`,
+    name: "Test Metric",
+    description: null,
+    unit: "count",
+    type: "counter",
+    builtin: false,
+    aggregation: "sum",
+    jurisdictionId: null,
+    ...overrides,
+  };
+}
+
+export function makeMetricPoint(
+  jurisdictionId: string,
+  overrides: Partial<CreationAttributes<MetricPoint>> = {},
+): CreationAttributes<MetricPoint> {
+  return {
+    metricKey: "test.metric",
+    jurisdictionId,
+    workerId: null,
+    orderId: null,
+    value: 1,
+    dimensions: {},
+    ts: new Date(),
     ...overrides,
   };
 }

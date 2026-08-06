@@ -3,6 +3,7 @@ import { loadConfig } from "./config.js";
 import { startListener } from "./listener.js";
 import { createQueueRunner } from "./consumer.js";
 import { startHeartbeat } from "./heartbeat.js";
+import { startScheduler } from "./scheduler/index.js";
 import { SettingsCache } from "./settingsCache.js";
 
 async function main(): Promise<void> {
@@ -11,6 +12,12 @@ async function main(): Promise<void> {
   const cache = new SettingsCache(db);
 
   const heartbeat = startHeartbeat(db, config.instanceId, config.heartbeatIntervalMs);
+  const scheduler = startScheduler({
+    db,
+    expirySweepIntervalMs: config.expirySweepIntervalMs,
+    gaugeSampleIntervalMs: config.gaugeSampleIntervalMs,
+    partitionMaintenanceIntervalMs: config.partitionMaintenanceIntervalMs,
+  });
   const runner = createQueueRunner({
     db,
     cache,
@@ -40,6 +47,7 @@ async function main(): Promise<void> {
     clearInterval(pollTimer);
     await listener.stop();
     await heartbeat.stop();
+    scheduler.stop();
     await db.sequelize.close();
     process.exit(0);
   }

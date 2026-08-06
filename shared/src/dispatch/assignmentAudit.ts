@@ -1,6 +1,6 @@
-import type { AuditAction } from "@voyager/shared";
 import type { Transaction } from "sequelize";
-import type { AppDb } from "../db.js";
+import type { AppDb } from "../db/createDb.js";
+import type { AuditAction } from "../models/AuditLog.js";
 
 export interface RecordAssignmentAuditInput {
   assignment: { id: string; toJSON(): Record<string, unknown> };
@@ -12,7 +12,11 @@ export interface RecordAssignmentAuditInput {
   transaction: Transaction;
 }
 
-/** Writes the `audit_log` row every assignment mutation (reassign/unassign/lifecycle event) records. */
+/**
+ * Writes the `audit_log` row every assignment mutation records — manual reassign/unassign, a
+ * worker-reported lifecycle event, and the scheduler's expiry sweep all call this so the three
+ * callers (two in `api`, one in `engine`) can't diverge on the audit shape.
+ */
 export async function recordAssignmentAudit(db: AppDb, input: RecordAssignmentAuditInput): Promise<void> {
   await db.models.AuditLog.create(
     {

@@ -12,6 +12,9 @@ export function getTestSequelize(options?: Parameters<typeof createSequelize>[1]
   return createSequelize(url, options);
 }
 
+// metric_definitions is deliberately excluded: its seeded built-in rows have no in-code fallback
+// (unlike settings, which callers fall back from), so truncating it would wipe every built-in
+// metric for the rest of the test run — all test files share one migrated container.
 const ALL_TABLES = [
   "webhook_events",
   "webhook_sources",

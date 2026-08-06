@@ -13,6 +13,7 @@ export interface AssignInput {
   ranked: Candidate[];
   pipelineTrace: PipelineTraceEntry[];
   dispatchQueueRowId: string;
+  responseTimeoutMs: number;
 }
 
 const ALREADY_ASSIGNED = "already-assigned" as const;
@@ -29,7 +30,7 @@ const ALREADY_ASSIGNED = "already-assigned" as const;
  * caller re-queues the row for retry in the latter case too, which is safe, if wasteful).
  */
 export async function assign(db: AppDb, input: AssignInput): Promise<Assignment | null> {
-  const { order, ranked, pipelineTrace, dispatchQueueRowId } = input;
+  const { order, ranked, pipelineTrace, dispatchQueueRowId, responseTimeoutMs } = input;
 
   for (const candidate of ranked) {
     const result = await db.sequelize.transaction(async (transaction) => {
@@ -52,6 +53,7 @@ export async function assign(db: AppDb, input: AssignInput): Promise<Assignment 
       });
       if (activeCount >= effectiveCapacity) return null;
 
+      const dispatchedAt = new Date();
       const created = await db.models.Assignment.create(
         {
           orderId: order.id,
@@ -61,6 +63,8 @@ export async function assign(db: AppDb, input: AssignInput): Promise<Assignment 
           source: "auto",
           score: candidate.score,
           pipelineTrace: { stages: pipelineTrace, candidate: candidate.trace },
+          dispatchedAt,
+          expiresAt: new Date(dispatchedAt.getTime() + responseTimeoutMs),
         },
         { transaction },
       );

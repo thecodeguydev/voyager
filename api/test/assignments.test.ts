@@ -72,6 +72,24 @@ describe("manual assignment (reassign/unassign/audit)", () => {
     expect(audit.body[0]).toMatchObject({ action: "reassign", entity: "assignment" });
   });
 
+  it("sets dispatchedAt/expiresAt and emits manual_override_rate=1 on reassign", async () => {
+    const { worker, order } = await seedOrderAndWorker();
+
+    const res = await request(app)
+      .post(`/api/v1/orders/${order.id}/reassign`)
+      .send({ workerId: worker.id, reason: "manual dispatch for testing" });
+    expect(res.status).toBe(200);
+
+    const assignment = await db.models.Assignment.findByPk(res.body.assignment.id);
+    expect(assignment?.expiresAt).not.toBeNull();
+    expect(assignment!.expiresAt!.getTime()).toBeGreaterThan(assignment!.dispatchedAt.getTime());
+
+    const metric = await db.models.MetricPoint.findOne({
+      where: { orderId: order.id, metricKey: "assignment.manual_override_rate" },
+    });
+    expect(Number(metric?.value)).toBe(1);
+  });
+
   it("blocks reassignment at capacity unless force is set, surfacing a warning", async () => {
     const { worker, order } = await seedOrderAndWorker({ maxConcurrent: 1 });
     const otherOrder = await db.models.Order.create(

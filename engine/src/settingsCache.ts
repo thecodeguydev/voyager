@@ -1,4 +1,9 @@
-import { pipelineConfigDocSchema, type AppDb, type PipelineConfigDoc } from "@voyager/shared";
+import {
+  pipelineConfigDocSchema,
+  resolveResponseTimeoutMs,
+  type AppDb,
+  type PipelineConfigDoc,
+} from "@voyager/shared";
 import { buildStages } from "./pipeline/buildStages.js";
 import { DEFAULT_SCORING_WEIGHTS, ScoringStage, type ScoringWeights } from "./pipeline/scoringStage.js";
 import type { Stage } from "./pipeline/stage.js";
@@ -7,6 +12,7 @@ export interface JurisdictionContext {
   settingsVersion: number;
   scoringWeights: ScoringWeights;
   stages: Stage[];
+  responseTimeoutMs: number;
 }
 
 /**
@@ -45,8 +51,9 @@ export class SettingsCache {
 
     const doc = await this.loadPipelineConfigDoc(jurisdictionId);
     const stages = doc ? buildStages(doc, this.db) : [new ScoringStage(scoringWeights)];
+    const responseTimeoutMs = await resolveResponseTimeoutMs(this.db.settingsService, jurisdictionId);
 
-    return { settingsVersion, scoringWeights, stages };
+    return { settingsVersion, scoringWeights, stages, responseTimeoutMs };
   }
 
   /** The jurisdiction's stored pipeline config, or null to fall back to Phase 2's behavior.
