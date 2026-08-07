@@ -59,7 +59,13 @@ describe("resolveTier", () => {
 describe("TierFilterStage", () => {
   it("tags every candidate without filtering the list", () => {
     const stage = new TierFilterStage(config);
-    const ctx: StageContext = { order: makeOrder({ priorityTier: "critical" }) as Order };
+    const ctx: StageContext = {
+      order: makeOrder({ priorityTier: "critical" }) as Order,
+      dispatchPolicy: {
+        maxCandidateDistance: { enabled: false, mode: "off", value: 20_000 },
+        minSkillMatchRatio: { enabled: false, mode: "off", value: 0 },
+      },
+    };
     const candidates = [makeCandidate(), makeCandidate()];
 
     const result = stage.run(candidates, ctx);

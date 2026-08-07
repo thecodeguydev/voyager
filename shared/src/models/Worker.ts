@@ -1,5 +1,14 @@
-import { DataTypes, Model, type CreationOptional, type InferAttributes, type InferCreationAttributes, type Sequelize } from "sequelize";
+import {
+  DataTypes,
+  Model,
+  type BelongsToManyGetAssociationsMixin,
+  type CreationOptional,
+  type InferAttributes,
+  type InferCreationAttributes,
+  type Sequelize,
+} from "sequelize";
 import type { GeoJSONPoint } from "./geo.js";
+import type { Zone } from "./Zone.js";
 import { baseColumns, isInValidator } from "./base.js";
 
 export type WorkerType = "utility" | "delivery" | "cab";
@@ -19,6 +28,8 @@ export class Worker extends Model<InferAttributes<Worker>, InferCreationAttribut
   declare status: CreationOptional<WorkerStatus>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
+
+  declare getZones: BelongsToManyGetAssociationsMixin<Zone>;
 }
 
 export function initWorkerModel(sequelize: Sequelize): typeof Worker {

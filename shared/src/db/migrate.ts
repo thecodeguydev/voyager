@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { QueryInterface, Sequelize } from "sequelize";
@@ -5,7 +6,11 @@ import { SequelizeStorage, Umzug } from "umzug";
 import { createSequelize } from "./sequelize.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const migrationsGlob = path.join(__dirname, "../../migrations/*.ts").replace(/\\/g, "/");
+const projectRoot = path.resolve(__dirname, "../..");
+const builtMigrationsDir = path.join(projectRoot, "dist/migrations");
+const migrationsGlob = fs.existsSync(builtMigrationsDir)
+  ? path.join(builtMigrationsDir, "*.js").replace(/\\/g, "/")
+  : path.join(projectRoot, "migrations/*.ts").replace(/\\/g, "/");
 
 /** Builds the Umzug migrator, backed by migrations/*.ts and a sequelize_meta storage table. */
 export function createMigrator(sequelize: Sequelize) {

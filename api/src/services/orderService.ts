@@ -10,6 +10,7 @@ import { UniqueConstraintError, type WhereOptions } from "sequelize";
 import type { AppDb } from "../db.js";
 import { badRequest, notFound } from "../lib/httpErrors.js";
 import { toGeoJSONPoint, type PointInput } from "../lib/geo.js";
+import { assertOrderIngestionPolicy } from "./ingestionPolicy.js";
 
 export interface CreateOrderInput {
   jurisdictionId: string;
@@ -39,6 +40,8 @@ export async function createOrder(db: AppDb, input: CreateOrderInput): Promise<C
 
   const jurisdiction = await Jurisdiction.findByPk(input.jurisdictionId);
   if (!jurisdiction) throw notFound(`Jurisdiction ${input.jurisdictionId} not found`);
+
+  await assertOrderIngestionPolicy(db, input.jurisdictionId, input.payload);
 
   const existing = await Order.findOne({
     where: { jurisdictionId: input.jurisdictionId, externalId: input.externalId },

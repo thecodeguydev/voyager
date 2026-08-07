@@ -1,3 +1,4 @@
+import { skillMatchRatio } from "./scoringStage.js";
 import type { Candidate, Stage, StageContext } from "./stage.js";
 
 export interface PipelineTraceEntry {
@@ -25,6 +26,31 @@ export async function runPipeline(
   let current = candidates;
   for (const stage of stages) {
     current = await stage.run(current, ctx);
+
+    if (ctx.dispatchPolicy.minSkillMatchRatio.enabled && ctx.dispatchPolicy.minSkillMatchRatio.mode === "enforce") {
+      current = current.filter((candidate) => {
+        const ratio = skillMatchRatio(candidate, ctx.order);
+        const threshold = ctx.dispatchPolicy.minSkillMatchRatio.value;
+        const matched = ratio >= threshold;
+
+        candidate.trace = {
+          ...candidate.trace,
+          policy: {
+            ...((candidate.trace.policy as Record<string, unknown> | undefined) ?? {}),
+            minSkillMatchRatio: {
+              enabled: true,
+              mode: ctx.dispatchPolicy.minSkillMatchRatio.mode,
+              threshold,
+              ratio,
+              matched,
+            },
+          },
+        };
+
+        return matched;
+      });
+    }
+
     trace.push({ stage: stage.type, candidateCount: current.length });
   }
   return { candidates: current, trace };

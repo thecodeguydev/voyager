@@ -10,7 +10,7 @@
     "./test": "./dist/test/index.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.migrations.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate": "tsx src/db/migrate.ts up",

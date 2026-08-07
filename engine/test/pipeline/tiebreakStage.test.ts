@@ -14,7 +14,13 @@ function makeCandidate(overrides: Partial<Candidate> & { worker?: Partial<Worker
   };
 }
 
-const ctx = {} as StageContext;
+const ctx: StageContext = {
+  order: { payload: {} } as StageContext["order"],
+  dispatchPolicy: {
+    maxCandidateDistance: { enabled: false, mode: "off", value: 20_000 },
+    minSkillMatchRatio: { enabled: false, mode: "off", value: 0 },
+  },
+};
 
 describe("TiebreakStage", () => {
   it("returns candidates unchanged when nothing has been scored", async () => {

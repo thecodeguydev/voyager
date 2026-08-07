@@ -47,11 +47,7 @@ export class ScoringStage implements Stage {
   }
 
   private skillScore(candidate: Candidate, order: Order): number {
-    const required = (order.payload as { skillsRequired?: unknown } | null)?.skillsRequired;
-    if (!Array.isArray(required) || required.length === 0) return 1;
-    const workerSkills = new Set(candidate.worker.skills);
-    const matched = required.filter((skill) => workerSkills.has(skill));
-    return matched.length / required.length;
+    return skillMatchRatio(candidate, order);
   }
 
   /** A proxy for idle time: how long since this worker's row last changed. Phase 2 has no
@@ -61,4 +57,12 @@ export class ScoringStage implements Stage {
     const idleMs = Date.now() - candidate.worker.updatedAt.getTime();
     return Math.min(idleMs / WAIT_TIME_REFERENCE_MS, 1);
   }
+}
+
+export function skillMatchRatio(candidate: Candidate, order: Order): number {
+  const required = (order.payload as { skillsRequired?: unknown } | null)?.skillsRequired;
+  if (!Array.isArray(required) || required.length === 0) return 1;
+  const workerSkills = new Set(candidate.worker.skills);
+  const matched = required.filter((skill) => workerSkills.has(skill));
+  return matched.length / required.length;
 }

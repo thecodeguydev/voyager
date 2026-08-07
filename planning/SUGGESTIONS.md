@@ -170,3 +170,24 @@ No new table or model needed — `ZoneWorker` already exists in `shared/src/mode
 
 ### Recommendation
 Adopt in the next phase that touches `api/` — this is a small, low-risk addition that closes a gap the engine has silently depended on since Phase 2. Follow the `schedules` nested-route precedent exactly (same validation style, same response shapes) and wire the Workers screen's zone assignment UI once the endpoints exist.
+
+---
+
+## 7. High-churn custom keys (Q2 option)
+
+**Status:** Proposed (not in plan).
+
+**Question 2 candidate set (high churn):**
+- `ingestion.order_type_schema`
+- `dispatch.max_eta_minutes`
+- `dispatch.fairness.max_assignments_per_window`
+
+**Intent:** This is the policy-heavy alternative for the first three custom keys. It prioritizes stronger operational policy control over implementation simplicity.
+
+### Why this is high churn
+- **Ingestion schema enforcement** (`ingestion.order_type_schema`) requires introducing order-type aware payload schema validation in the ingestion path.
+- **ETA-based filtering** (`dispatch.max_eta_minutes`) requires computing route ETA in dispatch (not just straight-line distance), with adapter/fallback/caching concerns in the hot path.
+- **Rolling-window fairness limits** (`dispatch.fairness.max_assignments_per_window`) require new assignment-window query paths and integration into candidate selection.
+
+### Recommendation
+Keep this as a future enhancement option and ship the lower-churn key set first when the goal is faster delivery with lower runtime risk.

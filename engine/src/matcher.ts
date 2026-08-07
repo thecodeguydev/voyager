@@ -7,7 +7,7 @@ import {
   type AppDb,
   type Order,
 } from "@voyager/shared";
-import type { Candidate } from "./pipeline/stage.js";
+import type { Candidate, DispatchPolicySettings } from "./pipeline/stage.js";
 
 interface CandidateRow {
   id: string;
@@ -27,7 +27,11 @@ interface CandidateRow {
  * query row (`Worker.build(rawRow, { isNewRecord: false })`) silently drops timestamp columns
  * (createdAt/updatedAt), so it isn't a safe way to hydrate from raw SQL results.
  */
-export async function findCandidates(db: AppDb, order: Order): Promise<Candidate[]> {
+export async function findCandidates(
+  db: AppDb,
+  order: Order,
+  dispatchPolicy: DispatchPolicySettings,
+): Promise<Candidate[]> {
   const rows = await db.sequelize.query<CandidateRow>(
     `
     SELECT
@@ -80,7 +84,27 @@ export async function findCandidates(db: AppDb, order: Order): Promise<Candidate
     const effectiveCapacity = await resolveEffectiveCapacity(worker, db.settingsService);
     if (Number(row.activeCount) >= effectiveCapacity) continue;
 
-    candidates.push({ worker, distanceMeters: Number(row.distanceMeters), score: null, trace: {} });
+    const distanceMeters = Number(row.distanceMeters);
+    const maxDistance = dispatchPolicy.maxCandidateDistance;
+    if (maxDistance.enabled && maxDistance.mode === "enforce" && distanceMeters > maxDistance.value) {
+      continue;
+    }
+
+    candidates.push({
+      worker,
+      distanceMeters,
+      score: null,
+      trace: {
+        policy: {
+          maxCandidateDistance: {
+            enabled: maxDistance.enabled,
+            mode: maxDistance.mode,
+            threshold: maxDistance.value,
+            matched: distanceMeters <= maxDistance.value,
+          },
+        },
+      },
+    });
   }
   return candidates;
 }

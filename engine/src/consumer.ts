@@ -36,8 +36,11 @@ async function processRow(db: AppDb, cache: SettingsCache, row: ClaimedDispatchR
     if (!order) throw new Error(`Order ${row.orderId} not found for dispatch_queue row ${row.id}`);
 
     const context = await resolveContext(cache, row.jurisdictionId);
-    const candidates = await findCandidates(db, order);
-    const { candidates: ranked, trace } = await runPipeline(context.stages, candidates, { order });
+    const candidates = await findCandidates(db, order, context.dispatchPolicy);
+    const { candidates: ranked, trace } = await runPipeline(context.stages, candidates, {
+      order,
+      dispatchPolicy: context.dispatchPolicy,
+    });
 
     if (ranked.length === 0) {
       await requeueForRetry(db, row, "No eligible candidate found");

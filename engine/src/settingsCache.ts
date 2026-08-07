@@ -1,18 +1,26 @@
 import {
+  DEFAULT_DISPATCH_MAX_CANDIDATE_DISTANCE,
+  DEFAULT_DISPATCH_MIN_SKILL_MATCH_RATIO,
+  DEFAULT_SCORING_WEIGHTS,
+  SETTING_KEYS,
+  dispatchMaxCandidateDistanceSettingSchema,
+  dispatchMinSkillMatchRatioSettingSchema,
+  parseSwitchableSetting,
   pipelineConfigDocSchema,
   resolveResponseTimeoutMs,
   type AppDb,
   type PipelineConfigDoc,
 } from "@voyager/shared";
 import { buildStages } from "./pipeline/buildStages.js";
-import { DEFAULT_SCORING_WEIGHTS, ScoringStage, type ScoringWeights } from "./pipeline/scoringStage.js";
-import type { Stage } from "./pipeline/stage.js";
+import { ScoringStage, type ScoringWeights } from "./pipeline/scoringStage.js";
+import type { DispatchPolicySettings, Stage } from "./pipeline/stage.js";
 
 export interface JurisdictionContext {
   settingsVersion: number;
   scoringWeights: ScoringWeights;
   stages: Stage[];
   responseTimeoutMs: number;
+  dispatchPolicy: DispatchPolicySettings;
 }
 
 /**
@@ -52,8 +60,9 @@ export class SettingsCache {
     const doc = await this.loadPipelineConfigDoc(jurisdictionId);
     const stages = doc ? buildStages(doc, this.db) : [new ScoringStage(scoringWeights)];
     const responseTimeoutMs = await resolveResponseTimeoutMs(this.db.settingsService, jurisdictionId);
+    const dispatchPolicy = await this.resolveDispatchPolicy(jurisdictionId);
 
-    return { settingsVersion, scoringWeights, stages, responseTimeoutMs };
+    return { settingsVersion, scoringWeights, stages, responseTimeoutMs, dispatchPolicy };
   }
 
   /** The jurisdiction's stored pipeline config, or null to fall back to Phase 2's behavior.
@@ -83,5 +92,25 @@ export class SettingsCache {
       jurisdictionId,
     });
     return resolved != null ? Number(resolved) : DEFAULT_SCORING_WEIGHTS[weight];
+  }
+
+  private async resolveDispatchPolicy(jurisdictionId: string): Promise<DispatchPolicySettings> {
+    const [maxDistanceRaw, minSkillRatioRaw] = await Promise.all([
+      this.db.settingsService.resolve(SETTING_KEYS.DISPATCH_MAX_CANDIDATE_DISTANCE_M, { jurisdictionId }),
+      this.db.settingsService.resolve(SETTING_KEYS.DISPATCH_MIN_SKILL_MATCH_RATIO, { jurisdictionId }),
+    ]);
+
+    return {
+      maxCandidateDistance: parseSwitchableSetting(
+        dispatchMaxCandidateDistanceSettingSchema,
+        maxDistanceRaw,
+        DEFAULT_DISPATCH_MAX_CANDIDATE_DISTANCE,
+      ),
+      minSkillMatchRatio: parseSwitchableSetting(
+        dispatchMinSkillMatchRatioSettingSchema,
+        minSkillRatioRaw,
+        DEFAULT_DISPATCH_MIN_SKILL_MATCH_RATIO,
+      ),
+    };
   }
 }

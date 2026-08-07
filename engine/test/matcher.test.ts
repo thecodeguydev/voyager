@@ -38,6 +38,11 @@ async function seedJurisdiction() {
   return db.models.Jurisdiction.create(makeJurisdiction(group.id, { timezone: "UTC" }));
 }
 
+const dispatchPolicy = {
+  maxCandidateDistance: { enabled: false, mode: "off" as const, value: 20_000 },
+  minSkillMatchRatio: { enabled: false, mode: "off" as const, value: 0 },
+};
+
 describe("matcher.findCandidates", () => {
   it("returns an available, zoned, on-duty, under-capacity worker with a computed distance", async () => {
     const jurisdiction = await seedJurisdiction();
@@ -47,7 +52,7 @@ describe("matcher.findCandidates", () => {
     await putOnDutyAllDay(db, worker.id);
     const order = await db.models.Order.create(makeOrder(jurisdiction.id));
 
-    const candidates = await findCandidates(db, order);
+    const candidates = await findCandidates(db, order, dispatchPolicy);
 
     expect(candidates).toHaveLength(1);
     expect(candidates[0].worker.id).toBe(worker.id);
@@ -64,7 +69,7 @@ describe("matcher.findCandidates", () => {
     await putOnDutyAllDay(db, worker.id);
     const order = await db.models.Order.create(makeOrder(jurisdiction.id));
 
-    const candidates = await findCandidates(db, order);
+    const candidates = await findCandidates(db, order, dispatchPolicy);
     expect(candidates).toHaveLength(0);
   });
 
@@ -76,7 +81,7 @@ describe("matcher.findCandidates", () => {
     // No shift schedule at all.
     const order = await db.models.Order.create(makeOrder(jurisdiction.id));
 
-    const candidates = await findCandidates(db, order);
+    const candidates = await findCandidates(db, order, dispatchPolicy);
     expect(candidates).toHaveLength(0);
   });
 
@@ -89,7 +94,7 @@ describe("matcher.findCandidates", () => {
     await putOnTimeoffAllDay(db, worker.id);
     const order = await db.models.Order.create(makeOrder(jurisdiction.id));
 
-    const candidates = await findCandidates(db, order);
+    const candidates = await findCandidates(db, order, dispatchPolicy);
     expect(candidates).toHaveLength(0);
   });
 
@@ -110,7 +115,7 @@ describe("matcher.findCandidates", () => {
     });
 
     const order = await db.models.Order.create(makeOrder(jurisdiction.id));
-    const candidates = await findCandidates(db, order);
+    const candidates = await findCandidates(db, order, dispatchPolicy);
     expect(candidates).toHaveLength(0);
   });
 
@@ -129,7 +134,7 @@ describe("matcher.findCandidates", () => {
     }
 
     const order = await db.models.Order.create(makeOrder(jurisdiction.id));
-    const candidates = await findCandidates(db, order);
+    const candidates = await findCandidates(db, order, dispatchPolicy);
 
     expect(candidates).toHaveLength(1);
     expect(candidates[0].worker.id).toBe(worker.id);
@@ -143,7 +148,24 @@ describe("matcher.findCandidates", () => {
     await putOnDutyAllDay(db, worker.id);
     const order = await db.models.Order.create(makeOrder(jurisdiction.id));
 
-    const candidates = await findCandidates(db, order);
+    const candidates = await findCandidates(db, order, dispatchPolicy);
+    expect(candidates).toHaveLength(0);
+  });
+
+  it("enforces dispatch.max_candidate_distance_m when policy mode is enforce", async () => {
+    const jurisdiction = await seedJurisdiction();
+    const zone = await db.models.Zone.create(makeZone(jurisdiction.id));
+    const worker = await db.models.Worker.create(makeWorker(jurisdiction.id, { location: point(-79.7, 43.3) }));
+    await db.models.ZoneWorker.create(makeZoneWorker(worker.id, zone.id));
+    await putOnDutyAllDay(db, worker.id);
+    const order = await db.models.Order.create(makeOrder(jurisdiction.id));
+
+    const enforcedPolicy = {
+      ...dispatchPolicy,
+      maxCandidateDistance: { enabled: true, mode: "enforce" as const, value: 200 },
+    };
+
+    const candidates = await findCandidates(db, order, enforcedPolicy);
     expect(candidates).toHaveLength(0);
   });
 });

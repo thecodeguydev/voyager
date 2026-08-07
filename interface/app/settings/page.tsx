@@ -17,6 +17,11 @@ const KNOWN_KEYS = [
   "pipeline.scoring.weights.distance",
   "pipeline.scoring.weights.skillMatch",
   "pipeline.scoring.weights.waitTime",
+  "ingestion.require_skills_required",
+  "dispatch.max_candidate_distance_m",
+  "dispatch.min_skill_match_ratio",
+  "engine.heartbeat.staleness_ms",
+  "dispatch.expiry_seconds",
 ];
 
 export default function SettingsPage() {
@@ -35,8 +40,7 @@ function SettingsPageInner() {
   const groupId = jurisdiction?.groupId ?? scopeGroupId ?? undefined;
 
   const [key, setKey] = useState(KNOWN_KEYS[0]);
-  const [customKey, setCustomKey] = useState("");
-  const effectiveKey = customKey.trim() || key;
+  const effectiveKey = key;
 
   // GET /settings has no key filter — fetch each scope's rows and find the key client-side below.
   const { data: globalRows, mutate: mutateGlobal } = useSettings({ scope: "global" });
@@ -68,10 +72,6 @@ function SettingsPageInner() {
                 </option>
               ))}
             </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-text-muted">…or custom key</span>
-            <input className="w-64 rounded-md border border-border-hairline bg-surface-page px-2 py-1.5 text-sm" value={customKey} onChange={(e) => setCustomKey(e.target.value)} placeholder="my.custom.key" />
           </label>
         </div>
       </Card>

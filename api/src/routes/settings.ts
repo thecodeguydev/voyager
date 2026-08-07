@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { validateRegisteredSettingValue } from "@voyager/shared";
 import { z } from "zod";
 import type { AppDb } from "../db.js";
 import { actorFrom } from "../lib/actor.js";
@@ -83,7 +84,18 @@ export function createSettingsRouter(db: AppDb): Router {
     validateParams(keyParamsSchema),
     validateBody(upsertBodySchema),
     async (req, res) => {
-      const setting = await settingsService.upsert({ ...req.body, key: req.params.key }, actorFrom(req));
+      const validated = validateRegisteredSettingValue(req.params.key, req.body.value);
+      if (!validated.success) {
+        if (validated.reason === "UNKNOWN_KEY") {
+          throw badRequest(`Unknown setting key: ${req.params.key}`);
+        }
+        throw badRequest(`Invalid value for setting key: ${req.params.key}`, validated.issues);
+      }
+
+      const setting = await settingsService.upsert(
+        { ...req.body, key: req.params.key, value: validated.value },
+        actorFrom(req),
+      );
       res.json(setting);
     },
   );

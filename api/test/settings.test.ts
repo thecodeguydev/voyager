@@ -147,4 +147,22 @@ describe("settings cascade + audit + rollback", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ scope: "group", value: 9000, groupId: group.id });
   });
+
+  it("rejects unknown setting keys", async () => {
+    const res = await request(app)
+      .put("/api/v1/settings/custom.unknown_key")
+      .send({ scope: "global", value: 1 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects invalid value shape for registered switchable key", async () => {
+    const res = await request(app)
+      .put("/api/v1/settings/dispatch.max_candidate_distance_m")
+      .send({ scope: "global", value: 123 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
 });

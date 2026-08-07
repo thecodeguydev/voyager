@@ -1,4 +1,9 @@
-import type { Order, Worker } from "@voyager/shared";
+import type {
+  DispatchMaxCandidateDistanceSetting,
+  DispatchMinSkillMatchRatioSetting,
+  Order,
+  Worker,
+} from "@voyager/shared";
 
 export interface Candidate {
   worker: Worker;
@@ -7,8 +12,14 @@ export interface Candidate {
   trace: Record<string, unknown>;
 }
 
+export interface DispatchPolicySettings {
+  maxCandidateDistance: DispatchMaxCandidateDistanceSetting;
+  minSkillMatchRatio: DispatchMinSkillMatchRatioSetting;
+}
+
 export interface StageContext {
   order: Order;
+  dispatchPolicy: DispatchPolicySettings;
 }
 
 /** A composable pipeline stage — filters and/or ranks candidates. See PLAN.md "Composable pipeline". */

@@ -1,10 +1,11 @@
-import type { Stage } from "./pipeline/stage.js";
+import type { DispatchPolicySettings, Stage } from "./pipeline/stage.js";
 import type { SettingsCache } from "./settingsCache.js";
 
 export interface DispatchContext {
   jurisdictionId: string;
   stages: Stage[];
   responseTimeoutMs: number;
+  dispatchPolicy: DispatchPolicySettings;
 }
 
 /**
@@ -13,6 +14,6 @@ export interface DispatchContext {
  * config + effective settings (from cache).
  */
 export async function resolveContext(cache: SettingsCache, jurisdictionId: string): Promise<DispatchContext> {
-  const { stages, responseTimeoutMs } = await cache.get(jurisdictionId);
-  return { jurisdictionId, stages, responseTimeoutMs };
+  const { stages, responseTimeoutMs, dispatchPolicy } = await cache.get(jurisdictionId);
+  return { jurisdictionId, stages, responseTimeoutMs, dispatchPolicy };
 }

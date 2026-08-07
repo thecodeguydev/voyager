@@ -15,7 +15,13 @@ function makeCandidate(overrides: Partial<Candidate> & { worker?: Partial<Worker
 }
 
 function makeCtx(payload: Record<string, unknown> = {}): StageContext {
-  return { order: { createdAt: new Date(), payload } as unknown as Order };
+  return {
+    order: { createdAt: new Date(), payload } as unknown as Order,
+    dispatchPolicy: {
+      maxCandidateDistance: { enabled: false, mode: "off", value: 20_000 },
+      minSkillMatchRatio: { enabled: false, mode: "off", value: 0 },
+    },
+  };
 }
 
 describe("ScoringStage", () => {
